@@ -1,0 +1,88 @@
+* autofix
+
+** Installation
+
+*** Manually
+
+Download repository and it to your load path in your init file:
+
+#+begin_src elisp :eval no
+
+(add-to-list 'load-path "/path/to/autofix/")
+
+(require 'autofix)
+
+#+end_src
+
+*** With use-package and straight
+
+#+begin_src elisp :eval no
+
+(use-package autofix
+  :straight (:repo "KarimAziev/autofix" :type git :host github))
+
+#+end_src
+
+** Commands
+
++ ~autofix~
+Autofix file header comments and footer. Also add autoload comments before all interactive functions in buffer.
+
++ ~autofix-footer~
+Add of fix file footer (provide 'filename) with comment ends here.
+
++ ~autofix-remove-unused-declarations~
+Removed unused declared functions.
+
++ ~autofix-fix-apply-autofix~
+Autofix fix apply autofix.
+
++ ~autofix-regenerate-header-comments~
+Replace or add new header comments section. If called interactively do it with confirmation, else silently.
+
++ ~autofix-file-header~
+Autofix file header include.
+
++ ~autofix-add-autoloads~
+Add autoload comments before all interactive functions in buffer.
+
++ ~autofix-commentary~
+Add Commentary section in current buffer if none.
+
++ ~autofix-fix-header-code-comment~
+Add Code comment to the end of header block.
+
++ ~autofix-first-head-line~
+Autofix first header line.
+
++ ~autofix-copy-org-annotations~
+Copy org annotation of items in buffer.
+
++ ~autofix-show-org-annotations~
+Show annotations as org list items.
+
++ ~autofix-scan-extract-all-docs~
+Return string with all docs in all buffer. If called interactively also copies it.
+
++ ~autofix-annotate-buffer~
+Add annotatations in header comment section. Annotations includes commands, custom variables.
+
++ ~autofix-url~
+Return string with genereted Copyright.
+
++ ~autofix-throw-done~
+Throw to the catch for done and return nil from it.
+
+** Customization
+
++ ~autofix-comment-section-body~
+Static text for adding in header comment section. It doesn't includes dynamic variables such author, year etc.
+
++ ~autofix-ignored-file-patterns~
+List of file name bases to ignore.
+
++ ~autofix-user-fullname~
+User email to add in header section.
+
++ ~autofix-user-email~
+User email to add in header section. Can be string, variable or function. Function will be called without args and should return string.
