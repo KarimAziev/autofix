@@ -617,30 +617,41 @@ For example:
                                 2)))
               (user (pop parts))
               (name (pop parts)))
-    (string-join (list
-                  (format "* %s" name)
-                  "** Installation"
-                  "*** Manually"
-                  "Download repository and it to your load path in your init file:"
-                  "#+begin_src elisp :eval no"
-                  (format "(add-to-list 'load-path \"/path/to/%s/\")" name)
-                  (format "(require '%s)" name)
-                  "#+end_src"
-                  "*** With use-package and straight"
-                  "#+begin_src elisp :eval no"
-                  (concat "(" "use-package\s" name "\n" "\s\s" ":straight (:repo "
-                          "\""
-                          user
-                          "/"
-                          name
-                          "\""
-                          "\s:type git :host github)"
-                          ")")
-                  "#+end_src"
-                  (autofix-annotate-with
-                   "** "
-                   'autofix-annotate-as-org-list))
-                 "\n\n")))
+    (let ((items (autofix-scan-buffer)))
+      (string-join
+       (list
+        (format "* %s" name)
+        "** Installation"
+        "*** Manually"
+        "Download repository and it to your load path in your init file:"
+        "#+begin_src elisp :eval no"
+        (format "(add-to-list 'load-path \"/path/to/%s/\")" name)
+        (format "(require '%s)" name)
+        "#+end_src"
+        "*** With use-package and straight"
+        "#+begin_src elisp :eval no"
+        (autofix-with-temp-lisp-buffer
+            (save-excursion
+              (insert (concat "(" "use-package\s" name "\n" "\s\s" ":straight (:repo "
+                              "\""
+                              user
+                              "/"
+                              name
+                              "\""
+                              "\s:type git :host github)"
+                              (when-let ((commands (plist-get items
+                                                              :interactive)))
+                                (concat "\n\s:commands\s(" (mapconcat 'car
+                                                                      commands "\n")
+                                        ")"))
+                              ")")))
+            (indent-sexp)
+          (buffer-substring-no-properties (point-min) (point-max)))
+        "#+end_src"
+        (autofix-annotate-with
+         "** "
+         'autofix-annotate-as-org-list))
+       "\n\n"))))
 
 (defun autofix-read-package-info ()
   "Read package info and return string."

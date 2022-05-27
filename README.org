@@ -19,7 +19,23 @@ Download repository and it to your load path in your init file:
 #+begin_src elisp :eval no
 
 (use-package autofix
-  :straight (:repo "KarimAziev/autofix" :type git :host github))
+  :straight (:repo "KarimAziev/autofix" :type git :host github)
+  :commands (autofix
+             autofix-footer
+             autofix-remove-unused-declarations
+             autofix-fix-apply-autofix
+             autofix-regenerate-header-comments
+             autofix-file-header
+             autofix-add-autoloads
+             autofix-commentary
+             autofix-fix-header-code-comment
+             autofix-first-head-line
+             autofix-copy-org-annotations
+             autofix-show-org-annotations
+             autofix-scan-extract-all-docs
+             autofix-annotate-buffer
+             autofix-url
+             autofix-throw-done))
 
 #+end_src
 
