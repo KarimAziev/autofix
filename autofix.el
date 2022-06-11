@@ -450,7 +450,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
     (autofix-jump-to-package-header-end)
     (insert
      (concat (if (looking-back "\n" 0) "" "\n")
-             ";; Version:\s 0.1.0" "\n"
+             ";; Version: 0.1.0" "\n"
              (if (or (looking-at autofix-package-header-re)
                      (looking-at "\n"))
                  "" "\n")))))
