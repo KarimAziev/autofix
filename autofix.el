@@ -573,12 +573,13 @@ To change the value customize the variable `autofix-comment-section-body'."
             (delete-region beg end))))
     (when-let ((keywords (when (autofix-jump-to-package-header-start)
                            (autofix-read-keyword))))
-      (insert
-       (concat (if (looking-back "\n\n" 0) "" "\n")
-               ";; Keywords:\s " (string-join keywords ",") "\n"
-               (if (or (looking-at autofix-package-header-re)
-                       (looking-at "\n"))
-                   "" "\n"))))))
+      (autofix-jump-to-package-header-end)
+      (insert (if (looking-back "\n" 0) "" "\n") ";; Keywords: "
+              (string-join keywords "\s")
+              (if (or (looking-at autofix-package-header-re)
+                      (looking-at "\n"))
+                  "" "\n")
+              "\n"))))
 
 (defun autofix-jump-to-package-header-start ()
   "Jump to the start of package header section or to place for new."
