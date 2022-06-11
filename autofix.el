@@ -946,37 +946,6 @@ For example:
          'autofix-annotate-as-org-list))
        "\n\n"))))
 
-(defun autofix-read-package-info ()
-  "Read package info and return string."
-  (when-let ((package-info (delete
-                            nil
-                            (list
-                             (autofix-read-header-url)
-                             (autofix-read-header-keywords)
-                             (autofix-read-header-string
-                              ";; Version: "
-                              "0.1.1")
-                             (autofix-read-header-string
-                              ";; Package-Requires: "
-                              "((emacs \"27.1\"))")))))
-    (concat "\n\n" (string-join package-info "\n"))))
-
-(defun autofix-read-header-keywords ()
-"Return string with header comment with Keywords or nil."
-(when-let ((keywords (string-join (autofix-read-keyword) ", ")))
-  (unless (string-empty-p keywords)
-    (concat ";; Keywords: " keywords))))
-
-(defun autofix-read-header-url ()
-	"Return string with header comment with Keywords or nil."
-  (when-let* ((remotes (autofix-repo-urls))
-              (choice
-               (if (= 1 (length remotes))
-                   (read-string ";; URL: " (car remotes))
-                 (completing-read ";; URL: " remotes))))
-    (unless (string-empty-p choice)
-      (concat ";; URL: " choice))))
-
 (defun autofix-read-header-string (prompt default-value)
   "Read a non-empty string from the minibuffer with PROMPT and DEFAULT-VALUE."
   (let ((str (string-trim (read-string prompt default-value))))
