@@ -395,6 +395,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                (concat author-header ";;" (make-string col ?\ )
                        new-author "\n"))))))
 
+;;;###autoload
 (defun autofix-author ()
   "Add current user as new author to existing or new author section."
   (interactive)
@@ -426,6 +427,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                          (looking-at "\n"))
                      "" "\n")))))))
 
+;;;###autoload
 (defun autofix-version ()
   "Add or fix package version."
   (interactive)
@@ -480,6 +482,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
     (mapcar (lambda (i) (concat "(" (car i) " \"" (cadr i) "\"" ")"))
             l)))
 
+;;;###autoload
 (defun autofix-package-requires ()
   "Add or fix package requires section."
   (interactive)
@@ -532,6 +535,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
     (while (looking-at skip-re)
       (re-search-forward skip-re nil t 1))))
 
+;;;###autoload
 (defun autofix-header-body-comment ()
   "Add additional comments after package headers.
 Default vaiue is comment starting with \"This file is NOT part of
@@ -544,6 +548,7 @@ To change the value customize the variable `autofix-comment-section-body'."
       (insert (concat (if (looking-back "\n\n" 0) "\n" "\n")
                       autofix-comment-section-body)))))
 
+;;;###autoload
 (defun autofix-keywords ()
   "Add or fix package keywords."
   (interactive)
@@ -584,6 +589,7 @@ To change the value customize the variable `autofix-comment-section-body'."
 
 (defvar finder-known-keywords)
 
+;;;###autoload
 (defun autofix-throw-done ()
   "Throw to the catch for done and return nil from it."
   (interactive)
@@ -1022,6 +1028,7 @@ For example:
            "Copyright author:\s"
            (autofix-author-annotation))))
 
+;;;###autoload
 (defun autofix-copyright ()
   "Prompt and fix or make new copyright."
   (interactive)
