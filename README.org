@@ -1,5 +1,5 @@
 * autofix
-
+Code and comment fixes, generating documentation for emacs-lisp packages.
 ** Installation
 
 *** Manually
@@ -22,57 +22,83 @@ Download repository and it to your load path in your init file:
   :straight (:repo "KarimAziev/autofix" :type git :host github)
   :commands (autofix
              autofix-footer
-             autofix-remove-unused-declarations
-             autofix-fix-apply-autofix
-             autofix-regenerate-header-comments
-             autofix-file-header
-             autofix-add-autoloads
+             autofix-header
              autofix-commentary
-             autofix-fix-header-code-comment
-             autofix-first-head-line
+             autofix-code-comment
+             autofix-header-first-line
              autofix-copy-org-annotations
              autofix-show-org-annotations
              autofix-scan-extract-all-docs
-             autofix-annotate-buffer
              autofix-url
-             autofix-throw-done))
+             autofix-copyright
+             autofix-keywords
+             autofix-header-body-comment
+             autofix-package-requires
+             autofix-version
+             autofix-author
+             autofix-annotate-buffer
+             autofix-remove-unused-declarations
+             autofix-autoloads))
 
 #+end_src
 
 ** Commands
-
+*** Fix all
 + ~autofix~
-Autofix file header comments and footer. Also add autoload comments before all interactive functions in buffer.
+Apply all code and comments fixes. Code fixes includes auto adding autoload comments before all interactive commmands and removing unused (declare-function ...) forms. Comments fixes includes fixes for file headers, package headers, footer etc.
 
+*** Fix file footer
 + ~autofix-footer~
 Add of fix file footer (provide 'filename) with comment ends here.
 
-+ ~autofix-remove-unused-declarations~
-Removed unused declared functions.
+*** Fix header comments
 
-+ ~autofix-fix-apply-autofix~
-Autofix fix apply autofix.
++ ~autofix-header~
+Apply all header fixes for header comments except ~autofix-annotate-buffer~.
 
-+ ~autofix-regenerate-header-comments~
-Replace or add new header comments section. If called interactively do it with confirmation, else silently.
++ ~autofix-annotate-buffer~
+Add annotatations in header comment section. Annotations includes commands, custom variables.
 
-+ ~autofix-file-header~
-Autofix file header include.
-
-+ ~autofix-add-autoloads~
-Add autoload comments before all interactive functions in buffer.
++ ~autofix-header-first-line~
+Fix or create the first comment line in the header.
 
 + ~autofix-commentary~
 Add Commentary section in current buffer if none.
 
-+ ~autofix-fix-header-code-comment~
++ ~autofix-code-comment~
 Add Code comment to the end of header block.
 
-+ ~autofix-first-head-line~
-Autofix first header line.
++ ~autofix-url~
+Return string with generated url.
 
++ ~autofix-copyright~
+Prompt and fix or make new copyright.
+
++ ~autofix-keywords~
+Add or fix package keywords.
+
++ ~autofix-header-body-comment~
+Add additional comments after package headers. Default vaiue is comment starting with "This file is NOT part of GNU Emacs..."), To change the value customize the variable ~autofix-comment-section-body~.
+
++ ~autofix-package-requires~
+Add or fix package requires section.
+
++ ~autofix-version~
+Add or fix package version.
+
++ ~autofix-author~
+Add current user as new author to existing or new author section.
+
+*** Code fixes
++ ~autofix-autoloads~
+Add autoload comments before all interactive functions in buffer.
++ ~autofix-remove-unused-declarations~
+Removed unused declared functions.
+
+
+*** Generate documentation
 + ~autofix-copy-org-annotations~
-Copy org annotation of items in buffer.
+Copy org annotations of items in buffer.
 
 + ~autofix-show-org-annotations~
 Show annotations as org list items.
@@ -80,19 +106,8 @@ Show annotations as org list items.
 + ~autofix-scan-extract-all-docs~
 Return string with all docs in all buffer. If called interactively also copies it.
 
-+ ~autofix-annotate-buffer~
-Add annotatations in header comment section. Annotations includes commands, custom variables.
-
-+ ~autofix-url~
-Return string with genereted Copyright.
-
-+ ~autofix-throw-done~
-Throw to the catch for done and return nil from it.
 
 ** Customization
-
-+ ~autofix-comment-section-body~
-Static text for adding in header comment section. It doesn't includes dynamic variables such author, year etc.
 
 + ~autofix-ignored-file-patterns~
 List of file name bases to ignore.
@@ -102,3 +117,6 @@ User email to add in header section.
 
 + ~autofix-user-email~
 User email to add in header section. Can be string, variable or function. Function will be called without args and should return string.
+
++ ~autofix-comment-section-body~
+Static text for adding in header comment section. It doesn't includes dynamic variables such author, year etc.
