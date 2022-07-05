@@ -4,8 +4,8 @@
 
 ;; Author: Karim Aziiev <karim.aziiev@gmail.com>
 ;; URL: https://github.com/KarimAziev/autofix
-;; Keywords: convenience, docs
-;; Version: 0.2.0
+;; Keywords: docs, convenience
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "27.1"))
 
 ;; This file is NOT part of GNU Emacs.
@@ -125,6 +125,37 @@
   "Static text for adding in header comment section.
 It doesn't includes dynamic variables such author, year etc."
   :type 'string
+  :group 'autofix)
+
+(defcustom autofix-quote-regexp (concat
+                                 "[^'\"]"
+                                 (regexp-opt (mapcar
+                                              #'symbol-name
+                                              '(mapconcat
+                                                mapc
+                                                mapcan
+                                                funcall
+                                                mapcar
+                                                seq-map
+                                                seq-map-indexed
+                                                seq-mapcat
+                                                seq-mapn
+                                                seq-take-while
+                                                seq-sort-by
+                                                seq-sort
+                                                seq-reduce
+                                                seq-remove
+                                                seq-drop-while
+                                                seq-some
+                                                seq-find
+                                                seq-filter
+                                                apply-partially
+                                                apply
+                                                funcall-interactively)))
+                                 "[\s\t\n\r\f]+'"
+                                 )
+  "Regexp to replace last char with '#."
+  :type 'regexp
   :group 'autofix)
 
 (defvar autofix-package-headers '("Author"
@@ -1310,6 +1341,16 @@ If called interactively also copies it."
                 (concat "(provide " "'" name ")" "\n" footer-end))))))
 
 ;;;###autoload
+(defun autofix-function-name-quoting ()
+  "Add a sharp quote (=#’=) when quoting function names."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (autofix-re-search-forward autofix-quote-regexp nil t 1)
+      (let ((pos (point)))
+        (replace-region-contents (1- pos) pos (lambda () "#'"))))))
+
+;;;###autoload
 (defun autofix ()
   "Apply all code and comments fixes.
 
@@ -1321,6 +1362,7 @@ Comments fixes includes fixes for file headers, package headers, footer etc."
   (autofix-autoloads)
   (autofix-header)
   (autofix-footer)
+  (autofix-function-name-quoting)
   (autofix-remove-unused-declarations))
 
 ;;;###autoload
