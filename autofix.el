@@ -1,10 +1,10 @@
-;;; autofix.el --- Autofixes for emacs packages -*- lexical-binding: t; -*-
+;;; autofix.el --- Autofix elisp packages -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2022 Karim Aziiev <karim.aziiev@gmail.com>
 
 ;; Author: Karim Aziiev <karim.aziiev@gmail.com>
 ;; URL: https://github.com/KarimAziev/autofix
-;; Keywords: convenience
+;; Keywords: convenience, docs
 ;; Version: 0.2.0
 ;; Package-Requires: ((emacs "27.1"))
 
@@ -26,7 +26,6 @@
 ;;; Commentary:
 
 ;; Annotate and autofix package headers
-
 
 ;;; Commands
 
@@ -187,7 +186,7 @@ Function will be called without args and should return string."
                    (shell-command-to-string "git config --get user.name")
                    (autofix-get-user-email)
                    (user-full-name))))
-    (mapconcat 'capitalize
+    (mapconcat #'capitalize
                (split-string
                 (autofix-string-to-undescore
                  (replace-regexp-in-string
@@ -407,7 +406,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
           (let ((beg (nth 1 author-header))
                 (end (nth 2 author-header))
                 (rep (autofix-add-author-str (car author-header) annotation)))
-            (let ((overlay (apply 'make-overlay (cdr author-header)))
+            (let ((overlay (apply #'make-overlay (cdr author-header)))
                   (confirmed))
               (unwind-protect
                   (progn
@@ -461,8 +460,8 @@ Return list of (\"REGEXP MATCH ...\" start end)."
   (when-let ((l
               (last
                (seq-sort-by
-                'cadr
-                'version<
+                #'cadr
+                #'version<
                 (seq-uniq
                  (mapcar
                   (lambda (it)
@@ -508,30 +507,34 @@ Return list of (\"REGEXP MATCH ...\" start end)."
             (delete-region beg end))))
     (when-let ((required-verison (autofix-get-emacs-version)))
       (autofix-jump-to-package-header-end)
-      (insert (concat (if (and (looking-back "\n" 0)
-                               (save-excursion
-                                 (forward-line -1)
-                                 (looking-at
-                                  (concat "^;;" "[\s]\\("
-                                          (string-join autofix-package-headers
-                                                       "\\|")
-                                          "\\)" ":"
-                                          "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"
-                                          ))))
-                          ""
-                        "\n"
-                        )
-                      ";; Package-Requires: " (format "%s" required-verison)
-                      (if (looking-at "\n\n")  "" "\n"))))))
+      (insert (concat
+               (if (and
+                    (looking-back "\n" 0)
+                    (save-excursion
+                      (forward-line -1)
+                      (looking-at
+                       (concat
+                        "^;;" "[\s]\\("
+                        (string-join
+                         autofix-package-headers
+                         "\\|")
+                        "\\)" ":"
+                        "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
+                   ""
+                 "\n")
+               ";; Package-Requires: " (format "%s" required-verison)
+               (if (looking-at
+                    "\n\n")  ""
+                 "\n"))))))
 
 (defun autofix-jump-to-package-header-end ()
   "Jump to the end of package header end."
   (autofix-jump-to-package-header-start)
-  (let ((skip-re (concat "^;;" "[\s]\\(" (string-join autofix-package-headers
-                                                      "\\|")
-                         "\\)" ":"
-                         "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"
-                         )))
+  (let ((skip-re (concat
+                  "^;;" "[\s]\\(" (string-join
+                                   autofix-package-headers "\\|")
+                  "\\)" ":"
+                  "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
     (while (looking-at skip-re)
       (re-search-forward skip-re nil t 1))))
 
@@ -569,7 +572,7 @@ To change the value customize the variable `autofix-comment-section-body'."
               (replace-region-contents beg end (lambda ()
                                                  (concat ";; Keywords: "
                                                          (string-join rep
-                                                                      "\s"))))
+                                                                      ",\s"))))
             (delete-region beg end))))
     (when-let ((keywords (when (autofix-jump-to-package-header-start)
                            (autofix-read-keyword))))
@@ -731,11 +734,12 @@ To change the value customize the variable `autofix-comment-section-body'."
                          "-\\*-"))
             (setq description (pop parts))
             (setq bindings (pop parts)))
-          (seq-remove 'string-empty-p (mapcar 'string-trim
-                                              (delete nil
-                                                      (list
-                                                       filename description
-                                                       bindings)))))))))
+          (seq-remove #'string-empty-p (mapcar
+                                        #'string-trim
+                                        (delete nil
+                                                (list
+                                                 filename description
+                                                 bindings)))))))))
 
 (defun autofix-guess-feature-name ()
   "Return file name base from current file or buffer."
@@ -778,9 +782,9 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
                       (list-at-point)))
               (type (car sexp))
               (id (autofix-unquote (when (symbolp (nth 1 sexp))
-                                       (nth 1 sexp))))
+                                     (nth 1 sexp))))
               (name (symbol-name id)))
-    (let ((doc (seq-find 'stringp (reverse (seq-take sexp 4))))
+    (let ((doc (seq-find #'stringp (reverse (seq-take sexp 4))))
           (args (and (autofix-function-p type)
                      (nth 2 sexp))))
       (list name args doc
@@ -796,7 +800,7 @@ Each group is prefixed with PREFIX, and constists of
 results of calling FN with list of (symbol-name args doc deftype)."
   (when-let ((items (autofix-scan-buffer)))
     (let ((blocks))
-      (dolist (key (mapcar 'car autofix-group-annotation-alist))
+      (dolist (key (mapcar #'car autofix-group-annotation-alist))
         (when-let ((title (alist-get key autofix-group-annotation-alist))
                    (description (plist-get items key)))
           (setq description
@@ -826,7 +830,7 @@ For example:
                (format "\n%s"
                        (mapconcat
                         (apply-partially
-                         'format
+                         #'format
                          (pcase mode
                            ('org-mode "%s" )
                            (_ ";;      %s" )))
@@ -892,7 +896,7 @@ For example:
 (defun autofix-annotate-as-comments (sexps)
   "Return string with generetad from SEXPS annotations as comments."
   (mapconcat
-   'autofix-annotate-list-item
+   #'autofix-annotate-list-item
    sexps "\n"))
 
 (defun autofix-org-annotation ()
@@ -923,28 +927,37 @@ For example:
         "#+end_src"
         "*** With use-package and straight"
         "#+begin_src elisp :eval no"
-        (autofix-with-temp-lisp-buffer
-            (save-excursion
-              (insert (concat "(" "use-package\s" name "\n" "\s\s" ":straight (:repo "
-                              "\""
-                              user
-                              "/"
-                              name
-                              "\""
-                              "\s:type git :host github)"
-                              (when-let ((commands (plist-get items
-                                                              :interactive)))
-                                (concat "\n\s:commands\s(" (mapconcat 'car
-                                                                      commands "\n")
-                                        ")"))
-                              ")")))
-            (indent-sexp)
-          (buffer-substring-no-properties (point-min) (point-max)))
+        (autofix-elisp-generate-use-package-string
+         user name
+         (plist-get items :interactive))
         "#+end_src"
         (autofix-annotate-with
          "** "
          'autofix-annotate-as-org-list))
        "\n\n"))))
+
+(defun autofix-elisp-generate-use-package-string (user reponame &optional
+                                                       commands)
+  "Generate string straght and use package installation from USER and REPONAME.
+With COMMANDS also insert :commands."
+  (autofix-with-temp-lisp-buffer
+      (save-excursion
+        (insert
+         (format "(use-package %s\n\s\s:straight (%s\n\s\s\s%s))"
+                 reponame
+                 reponame
+                 (mapconcat
+                  (lambda (it) (concat "\s\s\s" it))
+                  `(,(format ":repo \"%s/%s\"" user reponame)
+                    ":type git"
+                    ":host github")
+                  "\n")))
+        (forward-char -1)
+        (when commands
+          (insert
+           (concat "\n:commands\s(" (mapconcat #'car commands "\n") ")"))))
+      (indent-sexp)
+    (buffer-string)))
 
 (defun autofix-read-header-string (prompt default-value)
   "Read a non-empty string from the minibuffer with PROMPT and DEFAULT-VALUE."
@@ -1049,8 +1062,10 @@ For example:
                    beg end
                    (lambda () (let ((url (if (= 1 (length remotes))
                                         (read-string ";; URL: " (car remotes))
-                                      (completing-read ";; URL: " remotes))))
-                           (replace-region-contents beg end (lambda () url)))))))))
+                                      (completing-read ";; URL:  " remotes))))
+                           (replace-region-contents beg end (lambda () (concat
+                                                                   "\s"
+                                                                   url))))))))))
         (autofix-jump-to-package-header-end)
         (insert (if (looking-back "\n" 0) "" "\n") ";; URL: "
                 (if (= 1 (length remotes))
@@ -1070,7 +1085,7 @@ Annotations includes commands, custom variables."
       (autofix-jump-to-header-end)
       (when (re-search-backward ";;; Code:" nil t 1)
         (let ((pos (point)))
-          (dolist (title (mapcar 'cdr autofix-group-annotation-alist))
+          (dolist (title (mapcar #'cdr autofix-group-annotation-alist))
             (re-search-backward (concat "^;;;[\s\t]\\("
                                         (regexp-quote title) "\\)")
                                 nil t 1))
@@ -1318,8 +1333,8 @@ Comments fixes includes fixes for file headers, package headers, footer etc."
                (null (member (file-name-base
                               buffer-file-name)
                              autofix-ignored-file-patterns))))
-      (add-hook 'before-save-hook 'autofix nil 'local)
-    (remove-hook 'before-save-hook 'autofix 'local)))
+      (add-hook 'before-save-hook #'autofix nil 'local)
+    (remove-hook 'before-save-hook #'autofix 'local)))
 
 (provide 'autofix)
 ;;; autofix.el ends here
