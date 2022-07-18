@@ -4,8 +4,8 @@
 
 ;; Author: Karim Aziiev <karim.aziiev@gmail.com>
 ;; URL: https://github.com/KarimAziev/autofix
-;; Keywords: docs, convenience
-;; Version: 0.3.0
+;; Keywords: convenience, docs
+;; Version: 0.4.0
 ;; Package-Requires: ((emacs "27.1"))
 
 ;; This file is NOT part of GNU Emacs.
@@ -25,7 +25,12 @@
 
 ;;; Commentary:
 
-;; Annotate and autofix package headers
+;; A minor mode and commands for code and comment fixes.
+
+;; Usage
+
+;; M-x `autofix-mode'
+;; Runs `autofix' on file save when this mode is turned on.
 
 ;;; Commands
 
@@ -54,6 +59,8 @@
 ;;      Add or fix package keywords.
 ;; M-x `autofix-version'
 ;;      Add or fix package version.
+;; M-x `autofix-update-version'
+;;      Update package version.
 ;; M-x `autofix-header-body-comment'
 ;;      Add additional comments after package headers.
 ;;      Default vaiue is the comment starting with "This file is NOT part of GNU Emacs..."),
@@ -73,20 +80,20 @@
 ;; M-x `autofix-autoloads'
 ;;      Add autoload comments before all interactive functions in buffer.
 ;; M-x `autofix-remove-unused-declarations'
-;;      Removed unused declared functions
+;;      Remove unused declared functions
+;; M-x  `autofix-function-name-quoting'
+;;      Add a sharp quote (=#’=) when quoting function names.
+;;      For example, such code:
+;;      (mapcar 'car '((a . 2) (b . 2) (c . 3)))
+;;      to
+;;      (mapcar #'car '((a . 2) (b . 2) (c . 3)))
+;;
+
 
 ;;; Footer
 
 ;; M-x `autofix-footer'
 ;;      Add of fix file footer (provide 'filename) with comment ends here.
-
-;; M-x `autofix-copy-org-annotations'
-;;      Copy org annotation of items in buffer.
-;; M-x `autofix-show-org-annotations'
-;;      Show annotations as org list items.
-;; M-x `autofix-scan-extract-all-docs'
-;;      Return string with all docs in all buffer.
-;;      If called interactively also copy it.
 
 ;;; Customization
 
@@ -152,11 +159,72 @@ It doesn't includes dynamic variables such author, year etc."
                                                 apply-partially
                                                 apply
                                                 funcall-interactively)))
-                                 "[\s\t\n\r\f]+'"
-                                 )
+                                 "[\s\t\n\r\f]+'")
   "Regexp to replace last char with '#."
   :type 'regexp
   :group 'autofix)
+
+(defcustom autofix-header-functions '(autofix-header-first-line
+                                      autofix-copyright
+                                      autofix-author
+                                      autofix-url
+                                      autofix-version
+                                      autofix-keywords
+                                      autofix-package-requires
+                                      autofix-header-body-comment
+                                      autofix-commentary
+                                      autofix-code-comment)
+  "List of functions to fix header section:
+
+`autofix-header-first-line' Fix or create the first comment line in the header.
+`autofix-copyright' Prompt and fix or make new copyright.
+`autofix-author' Add or fix author.
+`autofix-url' Add of fix URL.
+`autofix-version'Add or fix package version.
+`autofix-keywords' Add or fix package keywords.
+`autofix-package-requires'Add or fix package requires section.
+`autofix-header-body-comment' Add `autofix-comment-section-body'.
+`autofix-commentary'Add Commentary section in current buffer if none.
+`autofix-code-comment'Add Code comment to the end of header block."
+  :group 'autofix
+  :type '(repeat
+          (choice
+           (function-item :tag "First line" autofix-header-first-line)
+           (function-item :tag "Copyright " autofix-copyright)
+           (function-item :tag "Author" autofix-author)
+           (function-item :tag "URL" autofix-url)
+           (function-item :tag "Version" autofix-version)
+           (function-item :tag "Keywords" autofix-keywords)
+           (function-item :tag "Package requires" autofix-package-requires)
+           (function-item :tag "Comments (`autofix-comment-section-body') "
+                          autofix-header-body-comment)
+           (function-item :tag "Commentary" autofix-commentary)
+           (function-item :tag "Code" autofix-code-comment)
+           (function :tag "Custom function"))))
+
+(defcustom autofix-functions '(autofix-autoloads
+                               autofix-header
+                               autofix-footer
+                               autofix-function-name-quoting
+                               autofix-remove-unused-declarations)
+  "List of functions to apply with command `autofix'.
+
+`autofix-autoloads'
+`autofix-header'
+`autofix-footer'
+`autofix-function-name-quoting'
+`autofix-remove-unused-declarations'"
+  :group 'autofix
+  :type '(repeat
+          (choice
+           (function-item :tag "Autoloads" autofix-autoloads)
+           (function-item :tag "Header" autofix-header)
+           (function-item :tag "Footer" autofix-footer)
+           (function-item :tag "Quoting function names"
+                          autofix-function-name-quoting)
+           (function-item :tag "Remove unused declaration"
+                          autofix-remove-unused-declarations)
+           (function :tag "Custom function"))))
 
 (defvar autofix-package-headers '("Author"
                                   "Maintainer"
@@ -212,7 +280,7 @@ Function will be called without args and should return string."
         (t autofix-user-email)))
 
 (defun autofix-detect-user-full-name ()
-  "Detect user full name from git config, git email or function `user-full-name'."
+  "Detect user full name from git config, email or function `user-full-name'."
   (when-let ((str (or
                    (shell-command-to-string "git config --get user.name")
                    (autofix-get-user-email)
@@ -243,15 +311,6 @@ Function will be called without args and should return string."
   "List of file name bases to ignore."
   :type '(repeat (regexp :tag "Regexp"))
   :group 'autofix)
-
-(defmacro autofix-with-temp-lisp-buffer (&rest body)
-  "Execute BODY in temp buffer with Emacs Lisp mode without hooks."
-  (declare (indent 2) (debug t))
-  `(with-temp-buffer
-     (erase-buffer)
-     (let (emacs-lisp-mode-hook) (emacs-lisp-mode))
-     (progn
-       ,@body)))
 
 (defun autofix-overlay-prompt-region (beg end fn &rest args)
 	"Highlight region from BEG to END while invoking FN with ARGS."
@@ -312,18 +371,6 @@ The optional argument COUNT is a number that indicates the
               (t
                (setq count (1- count)))))))
   (point))
-
-(defun autofix-git-remotes-alist ()
-  "Return alist of remotes and associated urls (REMOTE-NAME . REMOTE-URL)."
-  (when-let ((remotes
-              (with-temp-buffer
-                (when (= 0 (apply #'call-process "git" nil t nil '("remote" "-v")))
-                  (string-trim (buffer-string))))))
-    (seq-uniq
-     (mapcar (lambda (l) (let ((parts (split-string l)))
-                      (cons (car parts)
-                            (cadr parts))))
-             (split-string remotes "\n" t)))))
 
 (defun autofix-re-search-forward (regexp &optional bound noerror count)
   "Search forward from point for REGEXP ignoring elisp comments and strings.
@@ -457,18 +504,23 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                          (looking-at "\n"))
                      "" "\n")))))))
 
+(defun autofix-get-current-version ()
+  "Return package header version as string."
+  (when-let ((info (autofix-header-get-regexp-info ";;[\s\t]+Version:\\([^\n]+\\)*")))
+    (let* ((current-version (string-trim
+                             (match-string-no-properties 1))))
+      (unless (string-empty-p current-version)
+        current-version))))
+
 ;;;###autoload
-(defun autofix-version ()
-  "Add or fix package version."
+(defun autofix-update-version ()
+  "Update or add new package version."
   (interactive)
   (if-let ((info (autofix-header-get-regexp-info
                   ";;[\s]Version:\\([^\n]+\\)*")))
       (let* ((beg (nth 1 info))
              (end (nth 2 info))
-             (current-version (string-trim
-                               (replace-regexp-in-string "^;; Version:"
-                                                         ""
-                                                         (car info))))
+             (current-version (autofix-get-current-version))
              (rep (autofix-read-header-string
                    ";; Version: "
                    (if (string-empty-p current-version)
@@ -484,6 +536,13 @@ Return list of (\"REGEXP MATCH ...\" start end)."
              (if (or (looking-at autofix-package-header-re)
                      (looking-at "\n"))
                  "" "\n")))))
+
+;;;###autoload
+(defun autofix-version ()
+  "Add or fix package version."
+  (interactive)
+  (unless (autofix-get-current-version)
+    (autofix-update-version)))
 
 (require 'package-lint)
 (defun autofix-get-emacs-version ()
@@ -508,55 +567,62 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                   (seq-filter
                    (lambda (it) (string-match-p "You should depend on[\s][(]emacs[\s]"
                                            (car (reverse it))))
-                   (package-lint--check-all))))))))
-    (mapcar (lambda (i) (concat "(" (car i) " \"" (cadr i) "\"" ")"))
+                   (ignore-errors (package-lint--check-all)))))))))
+    (mapcar (lambda (it) (setcar it (intern (car it)))
+              it)
             l)))
 
 ;;;###autoload
 (defun autofix-package-requires ()
   "Add or fix package requires section."
   (interactive)
-  (if-let ((info (autofix-header-get-regexp-info
-                  ";;[\s]Package-Requires:\\([^\n]+\\)?")))
-      (when-let ((required-verison (autofix-get-emacs-version)))
-        (let* ((beg (nth 1 info))
-               (end (nth 2 info))
-               (value (replace-regexp-in-string
-                       "[(]emacs[\s\t]*\"[^\"]+\"[)]"
-                       (car required-verison)
-                       (string-trim
-                        (replace-regexp-in-string
-                         "^;; Package-Requires:"
-                         ""
-                         (car info)))))
-               (rep (concat
-                     ";; Package-Requires: " (if (string-match-p "[(][(]" value)
-                                                 value
-                                               (concat "(" value ")")))))
-          (if rep
-              (replace-region-contents beg end (lambda () rep))
-            (delete-region beg end))))
-    (when-let ((required-verison (autofix-get-emacs-version)))
-      (autofix-jump-to-package-header-end)
-      (insert (concat
-               (if (and
-                    (looking-back "\n" 0)
-                    (save-excursion
-                      (forward-line -1)
-                      (looking-at
-                       (concat
-                        "^;;" "[\s]\\("
-                        (string-join
-                         autofix-package-headers
-                         "\\|")
-                        "\\)" ":"
-                        "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
-                   ""
-                 "\n")
-               ";; Package-Requires: " (format "%s" required-verison)
-               (if (looking-at
-                    "\n\n")  ""
-                 "\n"))))))
+  (when-let ((required (autofix-get-emacs-version)))
+    (let* ((info (autofix-header-get-regexp-info
+                  ";;[\s]Package-Requires:\\([^\n]+\\)?"))
+           (str (when info (match-string-no-properties 1)))
+           (curr-requires (when str (car (read-from-string str))))
+           (result (mapcar (lambda (it)
+                             (if-let ((repl
+                                       (seq-find (lambda (c) (eq
+                                                         (car it)
+                                                         (car c)))
+                                                 required)))
+                                 (cons (car it) (cdr repl))
+                               it))
+                           curr-requires))
+           (rep))
+      (setq result (seq-uniq (append result required)
+                             (lambda (a b) (eq (car a) (car b)))))
+      (setq rep (unless (equal curr-requires result)
+                  (concat
+                   ";; Package-Requires: " (prin1-to-string result))))
+      (if info
+          (replace-region-contents
+           (nth 1 info) (nth 2 info)
+           (lambda () rep))
+        (autofix-jump-to-package-header-end)
+        (insert
+         (concat
+          (if
+              (and
+               (looking-back "\n" 0)
+               (save-excursion
+                 (forward-line -1)
+                 (looking-at
+                  (concat
+                   "^;;" "[\s]\\("
+                   (string-join
+                    autofix-package-headers
+                    "\\|")
+                   "\\)" ":"
+                   "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
+              ""
+            "\n")
+          rep
+          (if (looking-at
+               "\n\n")
+              ""
+            "\n")))))))
 
 (defun autofix-jump-to-package-header-end ()
   "Jump to the end of package header end."
@@ -583,12 +649,13 @@ To change the value customize the variable `autofix-comment-section-body'."
                       autofix-comment-section-body)))))
 
 ;;;###autoload
-(defun autofix-keywords ()
-  "Add or fix package keywords."
-  (interactive)
+(defun autofix-keywords (&optional force)
+  "Add or fix package keywords.
+With optional argument FORCE regenerate them even if valid."
+  (interactive "P")
   (if-let ((info (autofix-header-get-regexp-info
                   ";;[\s]Keywords:\\([^\n]+\\)?")))
-      (unless (string-match-p "[0-9]" (car info))
+      (when force
         (let ((beg (nth 1 info))
               (end (nth 2 info))
               (rep (autofix-read-keyword
@@ -802,9 +869,74 @@ SYMB can be either symbol, either string."
             "define-advice")))
 
 (defvar autofix-group-annotation-alist
-  '((:use-package . "Used Packages")
+  '((:define-derived-mode . "Major mode")
+    (:define-generic-mode . "Major mode")
+    (:define-compilation-mode . "Compilation mode")
+    (:easy-mmode-define-minor-mode . "Minor mode")
+    (:define-minor-mode . "Minor mode")
+    (:define-generic-mode . "Generic mode")
+    (:keymap . "Keymaps")
+    (:defhydra . "Hydras")
+    (:use-package . "Used Packages")
     (:interactive . "Commands")
-    (:defcustom . "Customization")))
+    (:defcustom . "Customization")
+    (:defun . "Functions")
+    (:defalias . "Functions")
+    (:cl-defun . "Functions")
+    (:defmacro . "Macros")
+    (:cl-defmacro . "Macros")
+    (:defvar . "Variables")
+    (:defvar-local . "Variables")
+    (:cl-defmethod . "Method")
+    (:cl-defstruct . "Structs")
+    (:defsubst . "Inline Functions")
+    (:cl-defsubst . "Inline Functions")))
+
+(defvar autofix-docstring-positions
+  '((defcustom . 3)
+    (defvar . 3)
+    (defvar-local . 3)
+    (defun . 3)
+    (defmacro . 3)
+    (defsubst . 3)
+    (define-derived-mode . 4)
+    (define-generic-mode . 7)
+    (ert-deftest . 3)
+    (cl-defun . 3)
+    (cl-defsubst . 3)
+    (cl-defmacro . 3)
+    (cl-defmethod . 5)
+    (defhydra . 3)
+    (cl-defstruct . 2)
+    (define-derived-mode . 4)
+    (define-compilation-mode . 3)
+    (easy-mmode-define-minor-mode . 2)
+    (define-minor-mode . 2)
+    (define-generic-mode . 7)))
+
+(defun autofix-symbol-keymapp (sym)
+  "Return t if value of symbol SYM is a keymap."
+  (when-let ((val (when (boundp sym) (symbol-value sym))))
+    (keymapp val)))
+
+(defun autofix-symbol-sexp-keymapp (sexp)
+  "Return t if SEXP look like keymap variable."
+  (when-let* ((value (nth 2 sexp))
+              (vals (and (listp value)
+                         (symbolp (car value))
+                         (memq (car value) '(let let*))
+                         (car (seq-drop value 1)))))
+    (when (and (listp vals)
+               (listp (car vals)))
+      (seq-find (lambda (it)
+                (when-let ((val (and (listp (cdr it))
+                                     (listp (cadr it))
+                                     (cadr it))))
+                  (and
+                   (= 1 (length val))
+                   (symbolp (car val))
+                   (memq (car val) '(make-sparse-keymap)))))
+              vals))))
 
 (defun autofix-parse-list-at-point ()
   "Parse list at point and return alist of form (symbol-name args doc deftype).
@@ -815,14 +947,27 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
               (id (autofix-unquote (when (symbolp (nth 1 sexp))
                                      (nth 1 sexp))))
               (name (symbol-name id)))
-    (let ((doc (seq-find #'stringp (reverse (seq-take sexp 4))))
+    (let ((doc (when-let ((pos (cdr (assq type autofix-docstring-positions))))
+                 (nth pos sexp)))
           (args (and (autofix-function-p type)
                      (nth 2 sexp))))
       (list name args doc
-            (if (and (autofix-function-p type)
-                     (eq 'interactive (car (nth (if doc 4 3) sexp))))
-                'interactive
-              type)))))
+            (cond ((and (autofix-function-p type)
+                        (or (and
+                             (nth 3 sexp)
+                             (listp (nth 3 sexp))
+                             (symbolp (car (nth 3 sexp)))
+                             (eq 'interactive (car (nth 3 sexp))))
+                            (and
+                             (nth 4 sexp)
+                             (listp (nth 4 sexp))
+                             (symbolp (car (nth 4 sexp)))
+                             (eq 'interactive (car (nth 4 sexp))))))
+                   'interactive)
+                  ((or (autofix-symbol-keymapp id)
+                       (autofix-symbol-sexp-keymapp sexp))
+                   'keymap)
+                  (t type))))))
 
 (defun autofix-annotate-with (prefix fn)
   "Return string of grouped annotations.
@@ -865,7 +1010,11 @@ For example:
                          (pcase mode
                            ('org-mode "%s" )
                            (_ ";;      %s" )))
-                        (split-string (nth 2 item-list) "[\n]")
+                        (split-string
+                         (substitute-command-keys (prin1-to-string
+                                                   (nth 2 item-list))
+                                                  t)
+                         "[\n]")
                         "\n")))))
     (format (if doc "%s\n" "%s\n")
             (string-join (delete nil (list name args doc))))))
@@ -891,104 +1040,11 @@ See function `autofix-parse-list-at-point'."
               (setq pl (plist-put pl keyword (list sexp)))))))
       pl)))
 
-(defun autofix-annotate-to-org (item-list)
-	"Format ITEM-LIST to org list item.
-ITEM-LIST is a list of (NAME ARGS DOC-STRING DEFINITION-TYPE).
-For example:
-\(\"my-function\" (my-arg) \"Doc string.\" defun)"
-  (let ((name (format "+ ~%s~" (car item-list)))
-        (args (when (nth 1 item-list)
-                (format " %s" (nth 1 item-list))))
-        (doc (when (nth 2 item-list)
-               (string-join (split-string
-                             (with-temp-buffer
-                               (save-excursion (insert
-                                                (nth 2 item-list)))
-                               (while (re-search-forward
-                                       "`\\([a-zZ-A0-9-+]+\\)'" nil t 1)
-                                 (replace-match
-                                  (concat "~"
-                                          (match-string-no-properties 1) "~")))
-                               (buffer-string))
-                             nil t)
-                            "\s")))
-        (title))
-    (setq title (string-join (delete nil (list name args)) "\s"))
-    (if doc
-        (concat title "\n" doc "\n")
-      (concat title "\n"))))
-
-(defun autofix-annotate-as-org-list (sexps)
-  "Return string with generetad from SEXPS annotations as org list items."
-  (mapconcat
-   (lambda (s) (autofix-annotate-to-org s))
-   sexps "\n"))
-
 (defun autofix-annotate-as-comments (sexps)
   "Return string with generetad from SEXPS annotations as comments."
   (mapconcat
    #'autofix-annotate-list-item
    sexps "\n"))
-
-(defun autofix-org-annotation ()
-	"Return string with readme template in org mode format."
-  (when-let* ((remote (cdr (car (autofix-git-remotes-alist))))
-              (parts (reverse
-                      (seq-take (reverse
-                                 (split-string
-                                  (replace-regexp-in-string
-                                   "\\.git$"
-                                   ""
-                                   (cdr (car (autofix-git-remotes-alist))))
-                                  "[:/]"
-                                  t))
-                                2)))
-              (user (pop parts))
-              (name (pop parts)))
-    (let ((items (autofix-scan-buffer)))
-      (string-join
-       (list
-        (format "* %s" name)
-        "** Installation"
-        "*** Manually"
-        "Download repository and it to your load path in your init file:"
-        "#+begin_src elisp :eval no"
-        (format "(add-to-list 'load-path \"/path/to/%s/\")" name)
-        (format "(require '%s)" name)
-        "#+end_src"
-        "*** With use-package and straight"
-        "#+begin_src elisp :eval no"
-        (autofix-elisp-generate-use-package-string
-         user name
-         (plist-get items :interactive))
-        "#+end_src"
-        (autofix-annotate-with
-         "** "
-         'autofix-annotate-as-org-list))
-       "\n\n"))))
-
-(defun autofix-elisp-generate-use-package-string (user reponame &optional
-                                                       commands)
-  "Generate string straght and use package installation from USER and REPONAME.
-With COMMANDS also insert :commands."
-  (autofix-with-temp-lisp-buffer
-      (save-excursion
-        (insert
-         (format "(use-package %s\n\s\s:straight (%s\n\s\s\s%s))"
-                 reponame
-                 reponame
-                 (mapconcat
-                  (lambda (it) (concat "\s\s\s" it))
-                  `(,(format ":repo \"%s/%s\"" user reponame)
-                    ":type git"
-                    ":host github")
-                  "\n")))
-        (forward-char -1)
-        (when commands
-          (insert
-           (concat "\n:commands\s(" (mapconcat #'car commands "\n") ")"))))
-      (indent-sexp)
-    (buffer-string)))
 
 (defun autofix-read-header-string (prompt default-value)
   "Read a non-empty string from the minibuffer with PROMPT and DEFAULT-VALUE."
@@ -1066,7 +1122,8 @@ With COMMANDS also insert :commands."
                               (line-end-position))))
                 (let ((new-copyright (read-string "Copyright" author)))
                   (replace-region-contents (point) line-end
-                                           (lambda () new-copyright)))))))
+                                           (lambda () (concat " "
+                                                         new-copyright))))))))
       (save-excursion
         (goto-char (point-min))
         (forward-line 1)
@@ -1145,26 +1202,28 @@ If called interactively also copies it."
       (kill-new docs))
     docs))
 
-;;;###autoload
-(defun autofix-show-org-annotations ()
-  "Show annotations as org list items."
-  (interactive)
-  (when-let ((buff-name (autofix-guess-feature-name))
-             (description (autofix-org-annotation)))
-    (with-current-buffer (get-buffer-create
-                          (concat "*autofix-annotate*"))
-      (setq buffer-read-only t)
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert description))
-      (org-mode)
-      (pop-to-buffer (current-buffer)))))
-
-;;;###autoload
-(defun autofix-copy-org-annotations ()
-  "Copy org annotation of items in buffer."
-  (interactive)
-  (kill-new (autofix-org-annotation)))
+(defun autofix-ensure-header-file (filename current-file)
+  "Replace CURRENT-FILE header with FILENAME."
+  (let* ((file-start (and
+                      (point)))
+         (file-end (and current-file
+                        (re-search-forward
+                         (regexp-quote current-file)
+                         (line-end-position) t 1))))
+    (if (and file-start
+             file-end
+             current-file)
+        (progn (replace-region-contents file-start file-end (lambda () filename))
+               (forward-char (apply #'-
+                                    (seq-sort  #'>
+                                               (mapcar
+                                                'length
+                                                (delete nil
+                                                        (list current-file
+                                                              filename)))))))
+      (if (equal current-file filename)
+          (insert filename)
+        (forward-char (length filename))))))
 
 ;;;###autoload
 (defun autofix-header-first-line ()
@@ -1174,47 +1233,60 @@ If called interactively also copies it."
     (goto-char (point-min))
     (let ((filename (autofix-non-directory-file-or-buff)))
       (if-let ((current-header (autofix-get-current-file-header)))
-          (let ((max-pos (line-end-position))
-                (current-file (nth 0 current-header))
-                (current-description (nth 1 current-header))
-                (current-bindings (nth 2 current-header))
-                (valid))
-            (setq valid (equal filename current-file))
+          (let ((current-file (nth 0 current-header))
+                (current-bindings (seq-find
+                                   (lambda (it) (member "lexical-binding:"
+                                                   (split-string it nil t)))
+                                   current-header))
+                (current-description))
+            (setq current-description
+                  (if (or (equal
+                           current-bindings
+                           (nth 1 current-header))
+                          (when current-description
+                            (string-empty-p
+                             current-description)))
+                      nil
+                    (nth 1 current-header)))
             (skip-chars-forward ";\s\t")
-            (when (and current-file
-                       (re-search-forward
-                        (regexp-quote current-file) max-pos t 1))
-              (unless valid
-                (replace-match filename))
-              (skip-chars-forward "\s\t")
-              (if (null current-description)
-                  (insert (read-string
-                           "Description:\s"
-                           (concat
-                            "Configure "
-                            (autofix-make-short-annotation)))
-                          " -*- lexical-binding: t; -*-"
-                          (if (looking-at "[^\n]")
-                              "\n\n"
-                            (if (looking-at "\n\n") "" "\n")))
-                (let ((beg (progn (skip-chars-forward "-\s\t")
-                                  (point)))
-                      (end (or (re-search-forward (regexp-quote
-                                                   current-description)
-                                                  max-pos t 1)
-                               max-pos))
-                      (new-descr (unless valid (read-string
-                                                "Description:\s"
-                                                current-description))))
-                  (when (and beg end new-descr)
-                    (replace-region-contents beg end (lambda () new-descr)))
-                  (unless current-bindings
-                    (insert " -*- lexical-binding: t -*-"
-                            (if (looking-at "[^\n]")
-                                "\n\n"
-                              (if (looking-at "\n\n") "" "\n"))))))))
+            (autofix-ensure-header-file filename current-file)
+            (skip-chars-forward "\s\t")
+            (skip-chars-forward "-")
+            (cond ((and (null current-description)
+                        current-bindings)
+                   (insert
+                    (if (looking-back "\s" 0) "" "\s")
+                    (read-string
+                     "Description:\s"
+                     (concat
+                      "Configure "
+                      (autofix-make-short-annotation)))
+                    (if (looking-at "\s" 0) "" "\s")))
+                  ((and (null current-description)
+                        (null current-bindings))
+                   (let ((rep (read-string
+                               "Description:\s"
+                               (concat
+                                "Configure "
+                                (autofix-make-short-annotation)))))
+                     (replace-region-contents
+                      (point)
+                      (line-end-position)
+                      (lambda ()
+                        (concat
+                         rep
+                         " -*- lexical-binding: t; -*-")))))
+                  ((and current-description
+                        (null current-bindings))
+                   (replace-region-contents (point)
+                                            (line-end-position)
+                                            (lambda () (concat " "
+                                                          current-description
+                                                          " "
+                                                          " -*- lexical-binding: t; -*-"
+                                                          ))))))
         (insert (concat ";;; " filename "\s" "--- "
-                        (read-string "Description:\s")
+                        (read-string (format "Description for %s:\s" filename))
                         " -*- lexical-binding: t; -*-"
                         (if (looking-at "[^\n]")
                             "\n\n"
@@ -1268,18 +1340,11 @@ If called interactively also copies it."
 
 ;;;###autoload
 (defun autofix-header ()
-  "Apply all header fixes for header comments."
+  "Apply all functions from `autofix-header-functions'."
   (interactive)
-  (autofix-header-first-line)
-  (autofix-copyright)
-  (autofix-author)
-  (autofix-url)
-  (autofix-version)
-  (autofix-keywords)
-  (autofix-package-requires)
-  (autofix-header-body-comment)
-  (autofix-commentary)
-  (autofix-code-comment))
+  (save-excursion
+    (dolist (fn autofix-header-functions)
+      (funcall fn))))
 
 ;;;###autoload
 (defun autofix-remove-unused-declarations ()
@@ -1342,7 +1407,17 @@ If called interactively also copies it."
 
 ;;;###autoload
 (defun autofix-function-name-quoting ()
-  "Add a sharp quote (=#’=) when quoting function names."
+  "Add a sharp quote (=#’=) when quoting function names.
+
+For example, such code:
+
+\(mapcar 'car '((a . 2) (b . 2) (c . 3)))
+
+Transforms to:
+
+\(mapcar #'car '((a . 2) (b . 2) (c . 3))).
+
+To customize this behavior see variable `autofix-quote-regexp'."
   (interactive)
   (save-excursion
     (goto-char (point-min))
@@ -1352,18 +1427,18 @@ If called interactively also copies it."
 
 ;;;###autoload
 (defun autofix ()
-  "Apply all code and comments fixes.
+  "Apply all functions from `autofix-functions'.
 
-Code fixes includes auto adding autoload comments before all interactive
+Default code fixes includes auto adding autoload comments before all interactive
 commmands and removing unused (declare-function ...) forms.
 
-Comments fixes includes fixes for file headers, package headers, footer etc."
+Default comments fixes includes fixes for file headers,
+package headers, footer etc.
+
+File headers fixes can be customized via `autofix-header-functions'."
   (interactive)
-  (autofix-autoloads)
-  (autofix-header)
-  (autofix-footer)
-  (autofix-function-name-quoting)
-  (autofix-remove-unused-declarations))
+  (dolist (fn autofix-functions)
+    (funcall fn)))
 
 ;;;###autoload
 (define-minor-mode autofix-mode

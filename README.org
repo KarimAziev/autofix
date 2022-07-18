@@ -1,5 +1,12 @@
 * autofix
-Code and comment fixes, generating documentation for emacs-lisp packages.
+
+Code and comment fixes for emacs-lisp packages.
+
+** Requirements
++ Emacs >= 27.1
++ finder (optional)
++ package-lint
+
 ** Installation
 
 *** Manually
@@ -8,7 +15,7 @@ Download repository and it to your load path in your init file:
 
 #+begin_src elisp :eval no
 
-(add-to-list 'load-path "/path/to/autofix/")
+(add-to-list 'load-path "/path/to/autofix)
 
 (require 'autofix)
 
@@ -19,28 +26,39 @@ Download repository and it to your load path in your init file:
 #+begin_src elisp :eval no
 
 (use-package autofix
-  :straight (:repo "KarimAziev/autofix" :type git :host github)
-  :commands (autofix
-             autofix-footer
-             autofix-header
-             autofix-commentary
-             autofix-code-comment
-             autofix-header-first-line
-             autofix-copy-org-annotations
-             autofix-show-org-annotations
-             autofix-scan-extract-all-docs
-             autofix-url
-             autofix-copyright
-             autofix-keywords
-             autofix-header-body-comment
-             autofix-package-requires
-             autofix-version
-             autofix-author
-             autofix-annotate-buffer
-             autofix-remove-unused-declarations
-             autofix-autoloads))
+	:straight (autofix
+			       :repo "KarimAziev/autofix"
+			       :type git
+			       :host github)
+	:bind ((:map autofix-multi-completion-map
+			         ("C-<return>" . autofix-throw-done)
+			         ("C-M-j" . autofix-throw-done)))
+	:commands (autofix
+			       autofix-function-name-quoting
+			       autofix-footer
+			       autofix-remove-unused-declarations
+			       autofix-header
+			       autofix-autoloads
+			       autofix-commentary
+			       autofix-code-comment
+			       autofix-header-first-line
+			       autofix-scan-extract-all-docs
+			       autofix-annotate-buffer
+			       autofix-url
+			       autofix-copyright
+			       autofix-keywords
+			       autofix-header-body-comment
+			       autofix-package-requires
+			       autofix-version
+			       autofix-update-version
+			       autofix-author))
 
 #+end_src
+
+** Minor mode
+
+*** ~autofix-mode~
+Runs ~autofix~ on file save when this mode is turned on.
 
 ** Commands
 *** Fix all
@@ -94,18 +112,18 @@ Add current user as new author to existing or new author section.
 Add autoload comments before all interactive functions in buffer.
 + ~autofix-remove-unused-declarations~
 Removed unused declared functions.
++ ~autofix-function-name-quoting~
+Add a sharp quote (=#'=) when quoting function names. For example, such code:
 
+#+begin_src emacs-lisp
+(mapcar 'car '((a . 2) (b . 2) (c . 3)))
+#+end_src
 
-*** Generate documentation
-+ ~autofix-copy-org-annotations~
-Copy org annotations of items in buffer.
+Transforms to:
 
-+ ~autofix-show-org-annotations~
-Show annotations as org list items.
-
-+ ~autofix-scan-extract-all-docs~
-Return string with all docs in all buffer. If called interactively also copies it.
-
+#+begin_src emacs-lisp
+(mapcar #'car '((a . 2) (b . 2) (c . 3)))
+#+end_src
 
 ** Customization
 
