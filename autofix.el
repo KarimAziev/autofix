@@ -947,8 +947,10 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
               (id (autofix-unquote (when (symbolp (nth 1 sexp))
                                      (nth 1 sexp))))
               (name (symbol-name id)))
-    (let ((doc (when-let ((pos (cdr (assq type autofix-docstring-positions))))
-                 (nth pos sexp)))
+    (let ((doc (when-let* ((pos (cdr (assq type autofix-docstring-positions)))
+                           (el (nth pos sexp)))
+                 (when (stringp el)
+                   el)))
           (args (and (autofix-function-p type)
                      (nth 2 sexp))))
       (list name args doc
@@ -1181,6 +1183,16 @@ Annotations includes commands, custom variables."
             (replace-region-contents
              pos (point)
              (lambda () blocks))))))))
+
+(defun autofix-scan-top-all-top-forms ()
+  "Parse all top level elisp forms with `autofix-parse-list-at-point'."
+  (save-excursion
+    (let ((l '()))
+      (goto-char (point-max))
+      (while (autofix-backward-list)
+        (when-let ((sexp (autofix-parse-list-at-point)))
+          (push sexp l)))
+      (nreverse l))))
 
 ;;;###autoload
 (defun autofix-scan-extract-all-docs ()
