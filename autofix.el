@@ -114,6 +114,9 @@
 
 ;;; Code:
 
+
+(require 'subr-x)
+
 (defcustom autofix-comment-section-body ";; This file is NOT part of GNU Emacs.
 
 ;; This program is free software; you can redistribute it and/or modify
