@@ -1377,7 +1377,7 @@ If called interactively also copies it."
 
 ;;;###autoload
 (defun autofix-footer ()
-  "Add of fix file footer (provide 'filename) with comment ends here."
+  "Add of fix file footer (provide \='filename) with comment ends here."
   (interactive)
   (save-excursion
     (let* ((name (autofix-guess-feature-name))
@@ -1398,14 +1398,16 @@ If called interactively also copies it."
                   (setcdr bounds (point)))))
             (if (not (equal name (symbol-name id)))
                 (progn
-                  (delete-region (car bounds) (cdr bounds))
+                  (delete-region (car bounds)
+                                 (cdr bounds))
                   (goto-char (point-max))
                   (insert (concat "(provide " "'" name ")"
                                   "\n"
                                   footer-end)))
               (forward-sexp 1)
               (unless (looking-at (concat "\n" (regexp-quote footer-end)))
-                (delete-region (car bounds) (cdr bounds))
+                (delete-region (car bounds)
+                               (cdr bounds))
                 (goto-char (point-max))
                 (insert (concat (prin1-to-string l)
                                 "\n"
@@ -1420,11 +1422,11 @@ If called interactively also copies it."
 
 For example, such code:
 
-\(mapcar 'car '((a . 2) (b . 2) (c . 3)))
+\(mapcar \='car \='((a . 2) (b . 2) (c . 3)))
 
 Transforms to:
 
-\(mapcar #'car '((a . 2) (b . 2) (c . 3))).
+\(mapcar #\='car \='((a . 2) (b . 2) (c . 3))).
 
 To customize this behavior see variable `autofix-quote-regexp'."
   (interactive)
