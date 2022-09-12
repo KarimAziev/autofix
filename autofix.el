@@ -778,14 +778,11 @@ With optional argument FORCE regenerate them even if valid."
     (when (car cell)
       (mapcar
        (lambda (url)
-         (if (string-match-p "^git@" url)
-             (replace-regexp-in-string "\\.git$" ""
-                                       (autofix-ssh-to-https
-                                        url))
-           url))
-       (seq-uniq
-        (mapcar (lambda (l) (nth 1 (split-string l nil t)))
-                (split-string (cdr cell) "\n" t)))))))
+         (replace-regexp-in-string "\\.git$" "" (or (autofix-ssh-to-https url)
+                                                    url)))
+       (seq-uniq (mapcar (lambda (l)
+                           (nth 1 (split-string l nil t)))
+                         (split-string (cdr cell) "\n" t)))))))
 
 (defun autofix-goto-last-form ()
   "Jump to last Lisp form in buffer."
