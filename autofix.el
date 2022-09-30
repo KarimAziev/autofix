@@ -1229,13 +1229,44 @@ If called interactively also copies it."
                (forward-char (apply #'-
                                     (seq-sort  #'>
                                                (mapcar
-                                                'length
+                                                #'length
                                                 (delete nil
                                                         (list current-file
                                                               filename)))))))
       (if (equal current-file filename)
           (insert filename)
         (forward-char (length filename))))))
+
+(defun autofix-read-summary (&optional initial-input)
+  "Read a string from the minibuffer with INITIAL-INPUT."
+  (autofix-trim-and-replace
+   "\\."
+   ""
+   (read-string
+    "Summary:\s"
+    (or initial-input
+        (when-let ((annotation (autofix-make-short-annotation)))
+          (concat "Configure " annotation))))))
+
+(defun autofix--summary-period ()
+  "Remove a period in the package summary."
+  (save-excursion
+    (goto-char (point-min))
+    (goto-char (line-end-position))
+    (when (and (looking-back "[-][*][-]" 0)
+               (re-search-backward  "[-][*][-]" nil t 2))
+      (let ((spaces (skip-chars-backward "\s\t")))
+        (if (< spaces -1)
+            (delete-char (1- (- spaces)))
+          spaces))
+      (when (looking-back "\\." 0)
+        (forward-char -1)
+        (let ((pos (point) ))
+          (when
+              (autofix-overlay-prompt-region pos
+                                             (1+ pos) 'yes-or-no-p
+                                             "The package summary should not end with a period. Remove?")
+            (delete-char 1)))))))
 
 ;;;###autoload
 (defun autofix-header-first-line ()
@@ -1247,8 +1278,9 @@ If called interactively also copies it."
       (if-let ((current-header (autofix-get-current-file-header)))
           (let ((current-file (nth 0 current-header))
                 (current-bindings (seq-find
-                                   (lambda (it) (member "lexical-binding:"
-                                                   (split-string it nil t)))
+                                   (lambda (it)
+                                     (member "lexical-binding:"
+                                             (split-string it nil t)))
                                    current-header))
                 (current-description))
             (setq current-description
@@ -1268,19 +1300,11 @@ If called interactively also copies it."
                         current-bindings)
                    (insert
                     (if (looking-back "\s" 0) "" "\s")
-                    (read-string
-                     "Description:\s"
-                     (concat
-                      "Configure "
-                      (autofix-make-short-annotation)))
+                    (autofix-read-summary)
                     (if (looking-at "\s" 0) "" "\s")))
                   ((and (null current-description)
                         (null current-bindings))
-                   (let ((rep (read-string
-                               "Description:\s"
-                               (concat
-                                "Configure "
-                                (autofix-make-short-annotation)))))
+                   (let ((rep (autofix-read-summary)))
                      (replace-region-contents
                       (point)
                       (line-end-position)
@@ -1292,17 +1316,27 @@ If called interactively also copies it."
                         (null current-bindings))
                    (replace-region-contents (point)
                                             (line-end-position)
-                                            (lambda () (concat " "
-                                                          current-description
-                                                          " "
-                                                          " -*- lexical-binding: t; -*-"
-                                                          ))))))
+                                            (lambda ()
+                                              (concat " "
+                                                      (autofix-trim-and-replace
+                                                       "\\.$"
+                                                       ""
+                                                       current-description)
+                                                      " -*- lexical-binding: t; -*-"))))
+                  (t (autofix--summary-period))))
         (insert (concat ";;; " filename "\s" "--- "
-                        (read-string (format "Description for %s:\s" filename))
+                        (autofix-trim-and-replace
+                         "\\.$"
+                         ""
+                         (autofix-read-summary))
                         " -*- lexical-binding: t; -*-"
                         (if (looking-at "[^\n]")
                             "\n\n"
                           (if (looking-at "\n\n") "" "\n"))))))))
+
+(defun autofix-trim-and-replace (regexp rep str)
+  "Trim STR and replace all matches for REGEXP with REP."
+  (replace-regexp-in-string regexp rep (string-trim str)))
 
 ;;;###autoload
 (defun autofix-code-comment ()
