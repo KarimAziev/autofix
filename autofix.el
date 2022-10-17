@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/autofix
 ;; Keywords: convenience, docs
 ;; Version: 0.4.0
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "27.1") (package-lint "0"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -116,6 +116,7 @@
 
 
 (require 'subr-x)
+(require 'package-lint)
 
 (defcustom autofix-comment-section-body ";; This file is NOT part of GNU Emacs.
 
@@ -547,7 +548,6 @@ Return list of (\"REGEXP MATCH ...\" start end)."
   (unless (autofix-get-current-version)
     (autofix-update-version)))
 
-(require 'package-lint)
 (defun autofix-get-emacs-version ()
   "Return suitable Emacs version for current package."
   (when-let ((l
@@ -575,33 +575,139 @@ Return list of (\"REGEXP MATCH ...\" start end)."
               it)
             l)))
 
-;;;###autoload
-(defun autofix-package-requires ()
-  "Add or fix package requires section."
-  (interactive)
-  (when-let ((required (autofix-get-emacs-version)))
+(defun autofix-elisp-find-symbol-library (sym)
+  "Find symbol SYM and return cons where head is buffer and cdr is position."
+  (require 'find-func)
+  (when (stringp sym)
+    (setq sym (intern sym)))
+  (let ((found nil)
+        (types
+         '(lib nil defvar))
+        (type))
+    (while (setq type
+                 (unless found (pop types)))
+      (when-let ((buff (or
+                        (ignore-errors
+                          (pcase type
+                            ('lib
+                             (when-let ((file
+                                         (find-library-name
+                                          (prin1-to-string
+                                           sym))))
+                               (find-file-noselect file)))
+                            (_ (car (find-definition-noselect
+                                     sym type))))))))
+        (setq found (with-current-buffer buff
+                      (when-let ((name (package-lint--provided-feature))
+                                 (version (lm-version)))
+                        (unless (string-empty-p version)
+                          (list (intern name)
+                                version)))))))
+    (when (assq (car found) package-archive-contents)
+      found)))
+
+(defun autofix-format-sexp-to-require (sexp)
+  "Return string with package name if SEXP is valid require call.
+If package is optional, also add suffix (optional)."
+  (pcase sexp
+    (`(require ,(and name
+                     (guard (listp name))
+                     (guard (eq (car-safe name) 'quote))))
+     (cons (autofix-unquote name) nil))
+    (`(require ,(and name
+                     (guard (listp name))
+                     (guard (eq (car-safe name) 'quote)))
+               ,_)
+     (cons (autofix-unquote name) nil))
+    (`(require ,(and name
+                     (guard (listp name))
+                     (guard (eq (car-safe name) 'quote)))
+               ,_
+               ,(and optional (guard (not (eq optional nil)))))
+     (cons (autofix-unquote name) t))))
+
+(defmacro autofix-with-temp-lisp-buffer (&rest body)
+  "Execute BODY in temp buffer with Emacs Lisp mode without hooks."
+  (declare (indent 2) (debug t))
+  `(with-temp-buffer
+     (erase-buffer)
+     (let (emacs-lisp-mode-hook) (emacs-lisp-mode))
+     (progn
+       ,@body)))
+
+(defun autofix-parse-require ()
+  "Parse list at point and return alist of form (symbol-name args doc deftype).
+E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
+  (when-let ((sexp
+              (unless (or (nth 4 (syntax-ppss (point)))
+                          (nth 3 (syntax-ppss (point))))
+                (sexp-at-point))))
+    (when (listp sexp)
+      (autofix-format-sexp-to-require sexp))))
+
+(defun autofix-get-require-calls ()
+  "Return list of required libs in current buffer."
+  (let ((requires '())
+        (deps))
+    (save-excursion
+      (goto-char (point-max))
+      (while (autofix-backward-list)
+        (when-let ((sexp
+                    (unless (nth 4 (syntax-ppss (point)))
+                      (list-at-point))))
+          (if-let ((dep (autofix-format-sexp-to-require sexp)))
+              (push dep requires)
+            (when (listp sexp)
+              (push sexp deps))))))
+    (when deps
+      (autofix-with-temp-lisp-buffer
+          (insert (prin1-to-string deps))
+          (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
+            (when-let ((found (autofix-parse-require)))
+              (unless (member found requires)
+                (push found requires))))))
+    requires))
+
+(defun autofix-get-required-libs ()
+  "Return alist of required packages and versions."
+  (delq nil (mapcar #'autofix-elisp-find-symbol-library
+                    (mapcar #'car (seq-remove
+                                  #'cdr
+                                  (autofix-get-require-calls))))))
+
+(defun autofix-add-package-require-lib (entry)
+  "Add ENTRY of form (symbol \"version\") to package requires section."
+  (when-let ((required entry))
     (let* ((info (autofix-header-get-regexp-info
                   ";;[\s]Package-Requires:\\([^\n]+\\)?"))
-           (str (when info (match-string-no-properties 1)))
-           (curr-requires (when str (car (read-from-string str))))
+           (str
+            (when info (match-string-no-properties 1)))
+           (curr-requires
+            (when str (car (read-from-string str))))
            (result (mapcar (lambda (it)
                              (if-let ((repl
-                                       (seq-find (lambda (c) (eq
-                                                         (car it)
-                                                         (car c)))
+                                       (seq-find (lambda (c)
+                                                   (eq
+                                                    (car it)
+                                                    (car c)))
                                                  required)))
-                                 (cons (car it) (cdr repl))
+                                 (cons (car it)
+                                       (cdr repl))
                                it))
                            curr-requires))
            (rep))
       (setq result (seq-uniq (append result required)
-                             (lambda (a b) (eq (car a) (car b)))))
-      (setq rep (unless (equal curr-requires result)
-                  (concat
-                   ";; Package-Requires: " (prin1-to-string result))))
+                             (lambda (a b)
+                               (eq (car a)
+                                   (car b)))))
+      (setq rep
+            (unless (equal curr-requires result)
+              (concat
+               ";; Package-Requires: " (prin1-to-string result))))
       (if info
           (replace-region-contents
-           (nth 1 info) (nth 2 info)
+           (nth 1 info)
+           (nth 2 info)
            (lambda () rep))
         (autofix-jump-to-package-header-end)
         (insert
@@ -626,6 +732,15 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                "\n\n")
               ""
             "\n")))))))
+
+;;;###autoload
+(defun autofix-package-requires ()
+  "Add or fix package requires section."
+  (interactive)
+  (when-let ((required (delq nil
+                             (append (autofix-get-emacs-version)
+                                     (autofix-get-required-libs)))))
+    (autofix-add-package-require-lib required)))
 
 (defun autofix-jump-to-package-header-end ()
   "Jump to the end of package header end."
@@ -996,28 +1111,30 @@ results of calling FN with list of (symbol-name args doc deftype)."
 ITEM-LIST is a list of (NAME ARGS DOC-STRING DEFINITION-TYPE).
 For example:
 \(\"my-function\" (my-arg) \"Doc string.\" defun)"
-  (let ((name (pcase mode
-                ('org-mode (format "+ ~%s~" (car item-list)))
-                (_ (format (if (member 'interactive item-list)
-                               ";; M-x `%s'"
-                             ";; `%s'")
-                           (car item-list)))))
-        (args (when (nth 1 item-list)
-                (format " %s" (nth 1 item-list))))
-        (doc (when (nth 2 item-list)
-               (format "\n%s"
-                       (mapconcat
-                        (apply-partially
-                         #'format
-                         (pcase mode
-                           ('org-mode "%s" )
-                           (_ ";;      %s" )))
-                        (split-string
-                         (substitute-command-keys (prin1-to-string
-                                                   (nth 2 item-list))
-                                                  t)
-                         "[\n]")
-                        "\n")))))
+  (let ((name
+         (pcase mode
+           ('org-mode (format "+ ~%s~" (car item-list)))
+           (_ (format (if (member 'interactive item-list)
+                          ";; M-x `%s'"
+                        ";; `%s'")
+                      (car item-list)))))
+        (args
+         (when (nth 1 item-list)
+           (format " %s" (nth 1 item-list))))
+        (doc
+         (when (nth 2 item-list)
+           (format "\n%s"
+                   (mapconcat
+                    (apply-partially
+                     #'format
+                     (pcase mode
+                       ('org-mode "%s" )
+                       (_ ";;      %s" )))
+                    (split-string
+                     (nth 2 item-list)
+                     "[\n\"]"
+                     t)
+                    "\n")))))
     (format (if doc "%s\n" "%s\n")
             (string-join (delete nil (list name args doc))))))
 
@@ -1459,11 +1576,11 @@ If called interactively also copies it."
 
 For example, such code:
 
-\(mapcar \='car \='((a . 2) (b . 2) (c . 3)))
+\(mapcar \\='car \\='((a . 2) (b . 2) (c . 3)))
 
 Transforms to:
 
-\(mapcar #\='car \='((a . 2) (b . 2) (c . 3))).
+\(mapcar #\\='car \\='((a . 2) (b . 2) (c . 3))).
 
 To customize this behavior see variable `autofix-quote-regexp'."
   (interactive)
