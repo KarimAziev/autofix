@@ -89,7 +89,6 @@
 ;;      (mapcar #'car '((a . 2) (b . 2) (c . 3)))
 ;;
 
-
 ;;; Footer
 
 ;; M-x `autofix-footer'
@@ -113,7 +112,6 @@
 ;;      It doesn't includes dynamic variables such author, year etc.
 
 ;;; Code:
-
 
 (require 'subr-x)
 (require 'package-lint)
@@ -140,29 +138,45 @@ It doesn't includes dynamic variables such author, year etc."
 
 (defcustom autofix-quote-regexp (concat
                                  "[^'\"]"
-                                 (regexp-opt (mapcar
-                                              #'symbol-name
-                                              '(mapconcat
-                                                mapc
-                                                mapcan
-                                                funcall
-                                                mapcar
-                                                seq-map
-                                                seq-map-indexed
-                                                seq-mapcat
-                                                seq-mapn
-                                                seq-take-while
-                                                seq-sort-by
-                                                seq-sort
-                                                seq-reduce
-                                                seq-remove
-                                                seq-drop-while
-                                                seq-some
-                                                seq-find
-                                                seq-filter
-                                                apply-partially
-                                                apply
-                                                funcall-interactively)))
+                                 (concat "\\("
+                                         (regexp-opt (mapcar
+                                                      #'symbol-name
+                                                      '(mapconcat
+                                                        mapc
+                                                        mapcan
+                                                        funcall
+                                                        mapcar
+                                                        seq-map
+                                                        seq-map-indexed
+                                                        seq-mapcat
+                                                        seq-mapn
+                                                        seq-take-while
+                                                        seq-sort-by
+                                                        seq-sort
+                                                        seq-reduce
+                                                        seq-remove
+                                                        seq-drop-while
+                                                        seq-some
+                                                        seq-find
+                                                        seq-filter
+                                                        seq-do
+                                                        seq-do-indexed
+                                                        apply-on-rectangle
+                                                        apply-partially
+                                                        defalias
+                                                        cl-assoc-if
+                                                        callf
+                                                        call-interactively
+                                                        apply
+                                                        cancel-function-timers
+                                                        funcall-interactively)))
+                                         "\\|"
+                                         (concat
+                                          (regexp-opt
+                                           (list "add-hook" "remove-hook"))
+                                          "[\s\t\n\r\f]+"
+                                          "'[a-z-+_$0-9]+")
+                                         "\\)")
                                  "[\s\t\n\r\f]+'")
   "Regexp to replace last char with '#."
   :type 'regexp
@@ -481,10 +495,12 @@ Return list of (\"REGEXP MATCH ...\" start end)."
   "Add current user as new author to existing or new author section."
   (interactive)
   (when-let ((annotation (autofix-author-annotation)))
-    (if-let ((author-header
-              (autofix-header-get-regexp-info
-               "^;;[\s]Author:\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
-        (unless (string-match-p (autofix-get-user-email) (car author-header))
+    (if-let
+        ((author-header
+          (autofix-header-get-regexp-info
+           "^;;[\s]Author:\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
+        (unless (string-match-p (autofix-get-user-email)
+                                (car author-header))
           (let ((beg (nth 1 author-header))
                 (end (nth 2 author-header))
                 (rep (autofix-add-author-str (car author-header) annotation)))
@@ -496,7 +512,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                     (goto-char beg)
                     (overlay-put overlay 'after-string
                                  (propertize rep 'face 'success))
-                    (setq confirmed (yes-or-no-p "Relace?")))
+                    (setq confirmed (yes-or-no-p "Replace?")))
                 (delete-overlay overlay))
               (when confirmed
                 (replace-region-contents beg end (lambda () rep))))))
@@ -504,9 +520,14 @@ Return list of (\"REGEXP MATCH ...\" start end)."
         (insert
          (concat (if (looking-back "\n\n" 0) "" "\n")
                  ";; Author:\s" annotation "\n"
-                 (if (or (looking-at autofix-package-header-re)
-                         (looking-at "\n"))
-                     "" "\n")))))))
+                 (if
+                     (or
+                      (looking-at
+                       autofix-package-header-re)
+                      (looking-at
+                       "\n"))
+                     ""
+                   "\n")))))))
 
 (defun autofix-get-current-version ()
   "Return package header version as string."
@@ -704,34 +725,34 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
             (unless (equal curr-requires result)
               (concat
                ";; Package-Requires: " (prin1-to-string result))))
-      (if info
-          (replace-region-contents
-           (nth 1 info)
-           (nth 2 info)
-           (lambda () rep))
-        (autofix-jump-to-package-header-end)
-        (insert
-         (concat
-          (if
-              (and
-               (looking-back "\n" 0)
-               (save-excursion
-                 (forward-line -1)
-                 (looking-at
-                  (concat
-                   "^;;" "[\s]\\("
-                   (string-join
-                    autofix-package-headers
-                    "\\|")
-                   "\\)" ":"
-                   "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
-              ""
-            "\n")
-          rep
-          (if (looking-at
-               "\n\n")
-              ""
-            "\n")))))))
+      (when rep
+        (if info
+            (replace-region-contents
+             (nth 1 info)
+             (nth 2 info)
+             (lambda () rep))
+          (autofix-jump-to-package-header-end)
+          (insert
+           (concat
+            (if (and
+                 (looking-back "\n" 0)
+                 (save-excursion
+                   (forward-line -1)
+                   (looking-at
+                    (concat
+                     "^;;" "[\s]\\("
+                     (string-join
+                      autofix-package-headers
+                      "\\|")
+                     "\\)" ":"
+                     "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
+                ""
+              "\n")
+            rep
+            (if (looking-at
+                 "\n\n")
+                ""
+              "\n"))))))))
 
 ;;;###autoload
 (defun autofix-package-requires ()
@@ -753,6 +774,27 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
     (while (looking-at skip-re)
       (re-search-forward skip-re nil t 1))))
 
+(defun autofix-confirm-and-replace-region (beg end replacement)
+  "Replace region between BEG and END with REPLACEMENT.
+REPLACEMENT should be a string, or a function that returns string.
+It will be called without arguments."
+  (when-let ((overlay (make-overlay beg end))
+             (rep (if (functionp replacement)
+                      (funcall replacement)
+                    replacement)))
+    (when (unwind-protect
+              (progn (overlay-put overlay 'face 'error)
+                     (overlay-put overlay 'after-string
+                                  (concat
+                                   "\s"
+                                   (propertize rep
+                                               'face 'success)))
+                     (yes-or-no-p "Replace region?"))
+            (delete-overlay overlay))
+      (when (fboundp 'replace-region-contents)
+        (replace-region-contents beg end (lambda () rep)))
+      rep)))
+
 ;;;###autoload
 (defun autofix-header-body-comment ()
   "Add additional comments after package headers.
@@ -763,8 +805,21 @@ To change the value customize the variable `autofix-comment-section-body'."
   (when autofix-comment-section-body
     (autofix-jump-to-package-header-end)
     (unless (re-search-forward autofix-comment-section-body nil t 1)
-      (insert (concat (if (looking-back "\n\n" 0) "\n" "\n")
-                      autofix-comment-section-body)))))
+      (if-let ((start (point))
+               (commentary-start
+                (save-excursion
+                  (when (autofix-jump-to-header-end)
+                    (re-search-backward "^[;]+[\s\t]+Commentary:[\s\t]?+\n"
+                                        nil
+                                        t 1)))))
+          (autofix-confirm-and-replace-region
+           start commentary-start
+           (concat
+            "\n"
+            (string-trim-left
+             autofix-comment-section-body)))
+        (insert (concat (if (looking-back "\n\n" 0) "\n" "\n")
+                        autofix-comment-section-body))))))
 
 ;;;###autoload
 (defun autofix-keywords (&optional force)
@@ -1379,10 +1434,10 @@ If called interactively also copies it."
       (when (looking-back "\\." 0)
         (forward-char -1)
         (let ((pos (point) ))
-          (when
-              (autofix-overlay-prompt-region pos
-                                             (1+ pos) 'yes-or-no-p
-                                             "The package summary should not end with a period. Remove?")
+          (when (autofix-overlay-prompt-region
+                 pos
+                 (1+ pos) 'yes-or-no-p
+                 "The package summary should not end with a period. Remove?")
             (delete-char 1)))))))
 
 ;;;###autoload
