@@ -331,7 +331,7 @@ Function will be called without args and should return string."
   :group 'autofix)
 
 (defun autofix-overlay-prompt-region (beg end fn &rest args)
-	"Highlight region from BEG to END while invoking FN with ARGS."
+  "Highlight region from BEG to END while invoking FN with ARGS."
   (let ((overlay (make-overlay beg end)))
     (unwind-protect
         (progn
@@ -547,7 +547,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
              (end (nth 2 info))
              (current-version (autofix-get-current-version))
              (rep (autofix-read-header-string
-                   ";; Version: "
+                   ";; Version: (empty if none)"
                    (if (string-empty-p current-version)
                        "0.1.0"
                      current-version))))
@@ -927,7 +927,7 @@ With optional argument FORCE regenerate them even if valid."
     choices))
 
 (defun autofix-ssh-to-https (ssh-remote)
-	"Convert SSH-REMOTE to https url."
+  "Convert SSH-REMOTE to https url."
   (with-temp-buffer
     (save-excursion (insert ssh-remote))
     (when (re-search-forward "@" nil t 1)
