@@ -220,6 +220,8 @@ It doesn't includes dynamic variables such author, year etc."
            (function-item :tag "Code" autofix-code-comment)
            (function :tag "Custom function"))))
 
+(make-variable-buffer-local 'autofix-header-functions)
+
 (defcustom autofix-functions '(autofix-autoloads
                                autofix-header
                                autofix-footer
@@ -243,6 +245,8 @@ It doesn't includes dynamic variables such author, year etc."
            (function-item :tag "Remove unused declaration"
                           autofix-remove-unused-declarations)
            (function :tag "Custom function"))))
+
+(make-variable-buffer-local 'autofix-functions)
 
 (defvar autofix-package-headers '("Author"
                                   "Maintainer"
@@ -325,7 +329,8 @@ Function will be called without args and should return string."
 
 (defcustom autofix-ignored-file-patterns '("init.el"
                                            "custom.el"
-                                           "early-init.el")
+                                           "early-init.el"
+                                           ".dir-locals.el")
   "List of file name bases to ignore."
   :type '(repeat (regexp :tag "Regexp"))
   :group 'autofix)
@@ -848,7 +853,8 @@ With optional argument FORCE regenerate them even if valid."
     (when-let ((keywords (when (autofix-jump-to-package-header-start)
                            (autofix-read-keyword))))
       (autofix-jump-to-package-header-end)
-      (insert (if (looking-back "\n" 0) "" "\n") ";; Keywords: "
+      (insert (if (looking-back "\n" 0) "" "\n")
+              ";; Keywords: "
               (string-join keywords "\s")
               (if (or (looking-at autofix-package-header-re)
                       (looking-at "\n"))
@@ -1657,8 +1663,12 @@ package headers, footer etc.
 
 File headers fixes can be customized via `autofix-header-functions'."
   (interactive)
-  (dolist (fn autofix-functions)
-    (funcall fn)))
+  (let ((name (or (if buffer-file-name
+                      (file-name-nondirectory buffer-file-name)
+                    (buffer-name)))))
+    (unless (member name autofix-ignored-file-patterns)
+      (dolist (fn autofix-functions)
+        (funcall fn)))))
 
 ;;;###autoload
 (define-minor-mode autofix-mode
