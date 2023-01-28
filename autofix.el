@@ -136,6 +136,7 @@ It doesn't includes dynamic variables such author, year etc."
   :type 'string
   :group 'autofix)
 
+
 (defcustom autofix-quote-regexp (concat
                                  "[^'\"]"
                                  (concat "\\("
@@ -273,6 +274,7 @@ It doesn't includes dynamic variables such author, year etc."
                         "git config --global --get user.email")
                        (getenv "EMAIL"))))
     (string-trim mail)))
+
 
 (defcustom autofix-user-email 'autofix-detect-user-email
   "User email to add in header section.
@@ -671,6 +673,46 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
     (when (listp sexp)
       (autofix-format-sexp-to-require sexp))))
 
+(defun autofix-elisp-move-with (fn &optional n)
+  "Move by calling FN N times.
+Return new position if changed, nil otherwise."
+  (unless n (setq n 1))
+  (with-syntax-table emacs-lisp-mode-syntax-table
+    (when-let ((str-start (nth 8 (syntax-ppss (point)))))
+      (goto-char str-start))
+    (let ((init-pos (point))
+          (pos)
+          (count (if (> n 0) n (- n))))
+      (while
+          (and (not (= count 0))
+               (when-let ((end (ignore-errors
+                                 (funcall fn (if
+                                                 (> n 0) 1
+                                               -1))
+                                 (point))))
+                 (unless (or (= end
+                                (or pos init-pos))
+                             (nth 4 (syntax-ppss (point)))
+                             (and (looking-at ";")
+                                  (nth 4 (syntax-ppss (1+ (point))))))
+                   (setq pos end))))
+        (setq count
+              (1- count)))
+      (if (= count 0)
+          pos
+        (goto-char init-pos)
+        nil))))
+
+(defun autofix-backward-list (&optional n)
+  "Move backward across N balanced group of parentheses.
+Return new position if changed, nil otherwise."
+  (autofix-elisp-move-with 'backward-list n))
+
+(defun autofix-backward-up-list (&optional arg)
+  "Move backward up across ARG balanced group of parentheses.
+Return new position if changed, nil otherwise."
+  (autofix-elisp-move-with 'backward-up-list arg))
+
 (defun autofix-get-require-calls ()
   "Return list of required libs in current buffer."
   (let ((requires '())
@@ -687,11 +729,11 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
               (push sexp deps))))))
     (when deps
       (autofix-with-temp-lisp-buffer
-          (insert (prin1-to-string deps))
-          (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
-            (when-let ((found (autofix-parse-require)))
-              (unless (member found requires)
-                (push found requires))))))
+       (insert (prin1-to-string deps))
+       (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
+         (when-let ((found (autofix-parse-require)))
+           (unless (member found requires)
+             (push found requires))))))
     requires))
 
 (defun autofix-get-required-libs ()
@@ -1019,17 +1061,6 @@ With optional argument FORCE regenerate them even if valid."
   "Return file name base from current file or buffer."
   (file-name-base (or (buffer-file-name) (format "%s" (current-buffer)))))
 
-(defun autofix-backward-list (&optional n)
-  "Move backward across N balanced group of parentheses.
-Return new position if changed, nil otherwise."
-  (let ((pos (point))
-        (end))
-    (setq end (ignore-errors
-                (backward-list (or n 1))
-                (point)))
-    (unless (equal pos end)
-      end)))
-
 (defun autofix-function-p (symb)
   "Return t is SYMB can have arguments.
 SYMB can be either symbol, either string."
@@ -1043,6 +1074,29 @@ SYMB can be either symbol, either string."
             "cl-defun"
             "define-inline"
             "define-advice")))
+
+;;;###autoload
+(defun autofix-add-fbound ()
+  "Wrap function call in fbound."
+  (interactive)
+  (let ((done))
+    (save-excursion
+      (when-let* ((symb (symbol-at-point))
+                  (beg (autofix-backward-up-list))
+                  (sexp (sexp-at-point))
+                  (end (progn (forward-sexp 1)
+                              (point)))
+                  (rep (format "(when (fboundp '%s) %s)" (symbol-name symb)
+                               (replace-regexp-in-string
+                                "[(]lambda nil"
+                                "(lambda ()" (prin1-to-string
+                                              sexp)))))
+        (when (fboundp 'replace-region-contents)
+          (replace-region-contents beg end (lambda () rep)))
+        (setq done t)))
+    (when (and done
+               (autofix-backward-up-list))
+      (newline-and-indent))))
 
 (defvar autofix-group-annotation-alist
   '((:define-derived-mode . "Major mode")
@@ -1234,10 +1288,20 @@ See function `autofix-parse-list-at-point'."
 
 (defun autofix-ensure-autoload ()
   "Insert autoload if list at point is a command without autoload comment."
-  (when (eq 'interactive (car (reverse (autofix-parse-list-at-point))))
-    (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
-      (insert ";;;###autoload\n")
-      t)))
+  (let ((l (autofix-parse-list-at-point)))
+    (pcase (car (reverse l))
+      ('interactive (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
+                      (insert ";;;###autoload\n")
+                      t))
+      ('transient-define-prefix
+        (when (= 0 (forward-line -1))
+          (let ((line (string-trim
+                       (buffer-substring-no-properties (point)
+                                                       (line-end-position)))))
+            (when (string-empty-p line)
+              (insert (format ";;;###autoload (autoload %s %s nil t)"
+                              (car l)
+                              (prin1-to-string (lm-get-package-name)))))))))))
 
 (defun autofix-make-short-annotation ()
   "Trim prefix from buffer file name base."
@@ -1574,13 +1638,15 @@ If called interactively also copies it."
 (defun autofix-remove-unused-declarations ()
   "Removed unused declared functions."
   (interactive)
-  (let* ((declarations-re (mapcar (lambda (it) (regexp-quote (car it)))
+  (let* ((declarations-re (mapcar (lambda (it)
+                                    (regexp-quote (car it)))
                                   (plist-get (autofix-scan-buffer)
                                              :declare-function)))
          (unused (seq-remove
-                  (lambda (re) (save-excursion
-                            (goto-char (point-min))
-                            (autofix-re-search-forward re nil t 2)))
+                  (lambda (re)
+                    (save-excursion
+                      (goto-char (point-min))
+                      (autofix-re-search-forward re nil t 2)))
                   declarations-re)))
     (dolist (re unused)
       (save-excursion
@@ -1588,7 +1654,14 @@ If called interactively also copies it."
         (autofix-re-search-forward re nil t 1)
         (backward-up-list 1)
         (let ((bounds (bounds-of-thing-at-point 'sexp)))
-          (delete-region (car bounds) (cdr bounds)))))))
+          (autofix-confirm-and-replace-region (save-excursion
+                                                (goto-char (car bounds))
+                                                (skip-chars-backward "\n")
+                                                (if (looking-back ";" 0)
+                                                    (car bounds)
+                                                  (point)))
+                                              (cdr bounds)
+                                              ""))))))
 
 ;;;###autoload
 (defun autofix-footer ()
