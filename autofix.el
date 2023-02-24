@@ -1293,15 +1293,15 @@ See function `autofix-parse-list-at-point'."
       ('interactive (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
                       (insert ";;;###autoload\n")
                       t))
-      ('transient-define-prefix
-        (when (= 0 (forward-line -1))
-          (let ((line (string-trim
-                       (buffer-substring-no-properties (point)
-                                                       (line-end-position)))))
-            (when (string-empty-p line)
-              (insert (format ";;;###autoload (autoload %s %s nil t)"
-                              (car l)
-                              (prin1-to-string (lm-get-package-name)))))))))))
+      ((or 'transient-define-prefix 'transient-define-suffix)
+       (when (= 0 (forward-line -1))
+         (let ((line (string-trim
+                      (buffer-substring-no-properties (point)
+                                                      (line-end-position)))))
+           (when (string-empty-p line)
+             (insert (format ";;;###autoload (autoload '%s %s nil t)"
+                             (car l)
+                             (prin1-to-string (lm-get-package-name)))))))))))
 
 (defun autofix-make-short-annotation ()
   "Trim prefix from buffer file name base."
