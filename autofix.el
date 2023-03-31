@@ -201,10 +201,10 @@ It doesn't includes dynamic variables such author, year etc."
 `autofix-url' Add of fix URL.
 `autofix-version'Add or fix package version.
 `autofix-keywords' Add or fix package keywords.
-`autofix-package-requires'Add or fix package requires section.
+`autofix-package-requires 'Add or fix package requires section.
 `autofix-header-body-comment' Add `autofix-comment-section-body'.
-`autofix-commentary'Add Commentary section in current buffer if none.
-`autofix-code-comment'Add Code comment to the end of header block."
+`autofix-commentary 'Add Commentary section in current buffer if none.
+`autofix-code-comment 'Add Code comment to the end of header block."
   :group 'autofix
   :type '(repeat
           (choice
@@ -258,7 +258,8 @@ It doesn't includes dynamic variables such author, year etc."
                                   "Homepage"
                                   "Package-Version"
                                   "Version"
-                                  "Package-Requires"))
+                                  "Package-Requires"
+                                  "SPDX-License-Identifier"))
 
 (defvar autofix-package-header-re (concat "^;;\s"
                                           "\\("
@@ -282,12 +283,12 @@ Can be string, variable or function.
 Function will be called without args and should return string."
   :type '(choice :tag "User email"
                  (string :tag "Type your email")
-                 (const :tag "Autodetect" autofix-detect-user-email)
+                 (const :tag "Auto-detect" autofix-detect-user-email)
                  (function :tag "Custom function"))
   :group 'autofix)
 
 (defun autofix-string-to-undescore (str)
-  "Trasnfrom STR to underscored."
+  "Transform STR to underscored."
   (let ((case-fold-search nil))
     (setq str (replace-regexp-in-string
                "\\([a-z0-9]\\)\\([A-Z]\\)" "\\1_\\2" str))
@@ -322,7 +323,7 @@ Function will be called without args and should return string."
   "User email to add in header section."
   :type '(choice :tag "User email"
                  (string :tag "Type your full name")
-                 (const :tag "Autodetect"
+                 (const :tag "Auto-detect"
                         autofix-detect-user-full-name)
                  (function :tag "Use value from `user-full-name'"
                            user-full-name)
@@ -452,8 +453,7 @@ See `autofix-user-fullname'."
                                           (forward-line 1)))
                                     (when (looking-back "[)]" 0)
                                       (forward-sexp -1))
-                                    (or (re-search-backward
-                                         "\\(;;;###\\)autoload[\s\t\n]" nil t 1)
+                                    (progn (while (re-search-backward "^\\(;;;###\\)autoload" nil t))
                                         (point))))))
                       (when (re-search-backward ";" nil t 1)
                         (end-of-line)
@@ -906,8 +906,11 @@ With optional argument FORCE regenerate them even if valid."
 (defun autofix-jump-to-package-header-start ()
   "Jump to the start of package header section or to place for new."
   (goto-char (point-min))
-  (while (looking-at (concat ";;;\\|\\(;;[\s]Copyright[\s]\\)\\|\n"))
+  (while (and (looking-at ";;;\\|\\(;;[\s]Copyright[\s]\\)\\|\n")
+              (not (looking-at ";;;###autoload")))
     (forward-line 1))
+  (when (looking-at ";;;###autoload")
+    (forward-line -1))
   (point))
 
 (defvar finder-known-keywords)
@@ -1026,7 +1029,8 @@ With optional argument FORCE regenerate them even if valid."
   "Get list with first line of file header - (filename description bindings)."
   (save-excursion
     (goto-char (point-min))
-    (when (looking-at ";;;")
+    (when (and (looking-at ";;;")
+               (not (looking-at ";;;###autoload")))
       (skip-chars-forward ";\s\t")
       (let ((parts)
             (beg (point))
@@ -1075,28 +1079,110 @@ SYMB can be either symbol, either string."
             "define-inline"
             "define-advice")))
 
+
+(defvar autofix-docstring-positions
+  (list (cons 'defun 3)
+        (cons 'defmacro 3)
+        (cons 'defsubst 3)
+        (cons 'defalias 4)
+        (cons 'defhydra 3)
+        (cons 'transient-define-prefix 3)
+        (cons 'transient-define-suffix 3)
+        (cons 'transient-define-argument 3)
+        (cons 'transient-define-infix 3)
+        (cons 'cl-defun 3)
+        (cons 'cl-defsubst 3)
+        (cons 'cl-defmacro 3)
+        (cons 'cl-defgeneric 3)
+        (cons 'cl-defmethod 3)
+        (cons 'define-minor-mode 2)
+        (cons 'define-derived-mode 4)
+        (cons 'define-generic-mode 8)
+        (cons 'define-compilation-mode 3)
+        (cons 'easy-mmode-define-minor-mode 2)))
+
+
 ;;;###autoload
 (defun autofix-add-fbound ()
   "Wrap function call in fbound."
   (interactive)
-  (let ((done))
-    (save-excursion
-      (when-let* ((symb (symbol-at-point))
-                  (beg (autofix-backward-up-list))
-                  (sexp (sexp-at-point))
-                  (end (progn (forward-sexp 1)
-                              (point)))
-                  (rep (format "(when (fboundp '%s) %s)" (symbol-name symb)
-                               (replace-regexp-in-string
-                                "[(]lambda nil"
-                                "(lambda ()" (prin1-to-string
-                                              sexp)))))
-        (when (fboundp 'replace-region-contents)
-          (replace-region-contents beg end (lambda () rep)))
-        (setq done t)))
-    (when (and done
-               (autofix-backward-up-list))
-      (newline-and-indent))))
+  (require 'flymake)
+  (require 'elisp-bundle)
+  (when (bound-and-true-p flymake-mode)
+    (when-let* ((diag (car (flymake-diagnostics (point)
+                                                (line-end-position))))
+                (text (when (fboundp 'flymake-diagnostic-text)
+                        (flymake-diagnostic-text diag)))
+                (beg (when (fboundp 'flymake-diagnostic-beg)
+                       (flymake-diagnostic-beg diag)))
+                (name (with-temp-buffer   (insert text)
+                                          (when (re-search-backward
+                                                 "‘\\([^’]+\\)’"
+                                                 nil t 1)
+                                            (match-string-no-properties 1)))))
+      (let ((buffer (when (fboundp 'flymake-diagnostic-buffer)
+                      (flymake-diagnostic-buffer diag))))
+        (cond ((string-match-p
+                "the function ‘\\([^’]+\\)’ might not be defined at runtime"
+                text)
+               (with-current-buffer buffer
+                 (when-let* ((start (autofix-backward-up-list))
+                             (end (progn (forward-sexp 1)
+                                         (point)))
+                             (content (buffer-substring-no-properties
+                                       start end)))
+                   (delete-region start end)
+                   (insert (format "(when (fboundp '%s))"
+                                   name))
+                   (forward-char -1)
+                   (newline-and-indent)
+                   (insert content))))
+              ((string-match-p
+                "the function ‘\\([^’]+\\)’ is not known to be defined"
+                text)
+               (with-current-buffer buffer
+                 (when-let* ((start (autofix-backward-up-list))
+                             (end (progn (forward-sexp 1)
+                                         (point)))
+                             (content (buffer-substring-no-properties
+                                       start end)))
+                   (delete-region start end)
+                   (insert (format "(when (fboundp '%s))"
+                                   name))
+                   (forward-char -1)
+                   (newline-and-indent)
+                   (insert content)
+                   (when-let ((lib
+                               (ignore-errors
+                                 (with-current-buffer (car-safe (find-definition-noselect
+                                                                 (intern
+                                                                  name)
+                                                                 nil))
+                                   (when (fboundp
+                                          'elisp-bundle--provided-feature)
+                                     (elisp-bundle--provided-feature))))))
+                     (beginning-of-defun)
+                     (let ((libs (mapcar 'symbol-name
+                                         (autofix-get-requires-from-sexp
+                                          (sexp-at-point)))))
+                       (message "libs %s" libs)
+                       (unless (member lib libs)
+                         (forward-char 1)
+                         (autofix-jump-to-body-start)
+                         (insert (format "(require '%s)" lib))
+                         (newline-and-indent))))))))))))
+
+(defun autofix-get-requires-from-sexp (sexp)
+  "Return required symbols from SEXP."
+  (let ((requires))
+    (while (and (listp sexp)
+                (setq sexp (memq 'require (flatten-list
+                                           sexp))))
+      (pop sexp)
+      (when (and (eq (car-safe sexp) 'quote)
+                 (symbolp (nth 1 sexp)))
+        (push (nth 1 sexp) requires)))
+    requires))
 
 (defvar autofix-group-annotation-alist
   '((:define-derived-mode . "Major mode")
@@ -1122,31 +1208,35 @@ SYMB can be either symbol, either string."
     (:defsubst . "Inline Functions")
     (:cl-defsubst . "Inline Functions")))
 
-(defvar autofix-docstring-positions
-  '((defcustom . 3)
-    (defvar . 3)
-    (defvar-local . 3)
-    (defun . 3)
-    (defmacro . 3)
-    (defsubst . 3)
-    (define-derived-mode . 4)
-    (define-generic-mode . 7)
-    (ert-deftest . 3)
-    (cl-defun . 3)
-    (cl-defsubst . 3)
-    (cl-defmacro . 3)
-    (cl-defmethod . 5)
-    (defhydra . 3)
-    (cl-defstruct . 2)
-    (define-derived-mode . 4)
-    (define-compilation-mode . 3)
-    (easy-mmode-define-minor-mode . 2)
-    (define-minor-mode . 2)
-    (define-generic-mode . 7)))
+(defun autofix-jump-to-body-start ()
+  "Parse list at point and return alist of form (symbol-name args doc deftype).
+E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
+  (let ((found nil))
+    (when-let ((start (car-safe (nth 9 (syntax-ppss (point))))))
+      (goto-char start)
+      (when-let* ((sexp (sexp-at-point))
+                  (sexp-type (car-safe sexp)))
+        (not (setq found (and (or (eq sexp-type 'defun)
+                                  (eq sexp-type 'cl-defun))
+                              (and (listp sexp)
+                                   (symbolp (nth 1 sexp))
+                                   (listp (nth 2 sexp))))))
+        (when found
+          (down-list)
+          (forward-sexp 3)
+          (skip-chars-forward "\s\t\n")
+          (when (looking-at "\"")
+            (forward-sexp 1)
+            (skip-chars-forward "\s\t\n"))
+          (when (looking-at "[(]interactive[^a-zZ-A]")
+            (forward-sexp 1)
+            (skip-chars-forward "\s\t\n"))
+          (point))))))
 
 (defun autofix-symbol-keymapp (sym)
   "Return t if value of symbol SYM is a keymap."
-  (when-let ((val (when (boundp sym) (symbol-value sym))))
+  (when-let ((val (when (boundp sym)
+                    (symbol-value sym))))
     (keymapp val)))
 
 (defun autofix-symbol-sexp-keymapp (sexp)
@@ -1204,7 +1294,7 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
 (defun autofix-annotate-with (prefix fn)
   "Return string of grouped annotations.
 
-Each group is prefixed with PREFIX, and constists of
+Each group is prefixed with PREFIX, and consists of
 results of calling FN with list of (symbol-name args doc deftype)."
   (when-let ((items (autofix-scan-buffer)))
     (let ((blocks))
@@ -1724,12 +1814,13 @@ To customize this behavior see variable `autofix-quote-regexp'."
       (let ((pos (point)))
         (replace-region-contents (1- pos) pos (lambda () "#'"))))))
 
+
 ;;;###autoload
 (defun autofix ()
   "Apply all functions from `autofix-functions'.
 
-Default code fixes includes auto adding autoload comments before all interactive
-commmands and removing unused (declare-function ...) forms.
+Default code fixes includes auto adding auto load comments before all interactive
+commands and removing unused (declare-function ...) forms.
 
 Default comments fixes includes fixes for file headers,
 package headers, footer etc.
