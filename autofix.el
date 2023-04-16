@@ -6,7 +6,8 @@
 ;; URL: https://github.com/KarimAziev/autofix
 ;; Keywords: convenience, docs
 ;; Version: 0.4.0
-;; Package-Requires: ((emacs "27.1") (package-lint "0"))
+;; Package-Requires: ((emacs "27.1") (flymake "1.2.2") (package-lint "0.17"))
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -192,7 +193,8 @@ It doesn't includes dynamic variables such author, year etc."
                                       autofix-package-requires
                                       autofix-header-body-comment
                                       autofix-commentary
-                                      autofix-code-comment)
+                                      autofix-code-comment
+                                      autofix-license)
   "List of functions to fix header section:
 
 `autofix-header-first-line' Fix or create the first comment line in the header.
@@ -201,13 +203,14 @@ It doesn't includes dynamic variables such author, year etc."
 `autofix-url' Add of fix URL.
 `autofix-version'Add or fix package version.
 `autofix-keywords' Add or fix package keywords.
-`autofix-package-requires 'Add or fix package requires section.
+`autofix-package-requires' Add or fix package requires section.
 `autofix-header-body-comment' Add `autofix-comment-section-body'.
-`autofix-commentary 'Add Commentary section in current buffer if none.
-`autofix-code-comment 'Add Code comment to the end of header block."
+`autofix-commentary' Add Commentary section in current buffer if none.
+`autofix-code-comment' Add Code comment to the end of header block.
+`autofix-license' Add SPDX short-form identifier."
   :group 'autofix
   :type '(repeat
-          (choice
+          (radio
            (function-item :tag "First line" autofix-header-first-line)
            (function-item :tag "Copyright " autofix-copyright)
            (function-item :tag "Author" autofix-author)
@@ -219,9 +222,21 @@ It doesn't includes dynamic variables such author, year etc."
                           autofix-header-body-comment)
            (function-item :tag "Commentary" autofix-commentary)
            (function-item :tag "Code" autofix-code-comment)
+           (function-item :tag "SPDX-License-Identifier" autofix-license)
            (function :tag "Custom function"))))
-
 (make-variable-buffer-local 'autofix-header-functions)
+
+
+(defcustom autofix-spdx-license "GPL-3.0-or-later"
+  "Default SPDX short-form identifier."
+  :group 'autofix
+  :type `(radio
+          (const :tag "GNU General Public License v3.0" "GPL-3.0-or-later")
+          (const :tag "MIT License" "MIT")
+          (string :tag "Other")
+          (const  :tag "None" nil)))
+
+
 
 (defcustom autofix-functions '(autofix-autoloads
                                autofix-header
@@ -258,6 +273,7 @@ It doesn't includes dynamic variables such author, year etc."
                                   "Homepage"
                                   "Package-Version"
                                   "Version"
+                                  "Authors"
                                   "Package-Requires"
                                   "SPDX-License-Identifier"))
 
@@ -627,7 +643,17 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                                      sym type))))))))
         (setq found (with-current-buffer buff
                       (when-let ((name (package-lint--provided-feature))
-                                 (version (lm-version)))
+                                 (version (or
+                                           (ignore-errors
+                                             (replace-regexp-in-string
+                                              "^[^0-9]+"
+                                              ""
+                                              (car (process-lines
+                                                    "git"
+                                                    "describe"
+                                                    "--abbrev=0"
+                                                    "--tags"))))
+                                           (lm-version))))
                         (unless (string-empty-p version)
                           (list (intern name)
                                 version)))))))
@@ -713,8 +739,9 @@ Return new position if changed, nil otherwise."
 Return new position if changed, nil otherwise."
   (autofix-elisp-move-with 'backward-up-list arg))
 
-(defun autofix-get-require-calls ()
-  "Return list of required libs in current buffer."
+(defun autofix-get-require-calls (&optional top-level)
+  "Return list of required libs in current buffer.
+If TOP-LEVEL is non nil, return only top-levels calls."
   (let ((requires '())
         (deps))
     (save-excursion
@@ -725,23 +752,24 @@ Return new position if changed, nil otherwise."
                       (list-at-point))))
           (if-let ((dep (autofix-format-sexp-to-require sexp)))
               (push dep requires)
-            (when (listp sexp)
+            (when (and (not top-level)
+                       (listp sexp))
               (push sexp deps))))))
     (when deps
       (autofix-with-temp-lisp-buffer
-       (insert (prin1-to-string deps))
-       (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
-         (when-let ((found (autofix-parse-require)))
-           (unless (member found requires)
-             (push found requires))))))
+          (insert (prin1-to-string deps))
+          (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
+            (when-let ((found (autofix-parse-require)))
+              (unless (member found requires)
+                (push found requires))))))
     requires))
 
 (defun autofix-get-required-libs ()
   "Return alist of required packages and versions."
   (delq nil (mapcar #'autofix-elisp-find-symbol-library
                     (mapcar #'car (seq-remove
-                                  #'cdr
-                                  (autofix-get-require-calls))))))
+                                   #'cdr
+                                   (autofix-get-require-calls t))))))
 
 (defun autofix-add-package-require-lib (entry)
   "Add ENTRY of form (symbol \"version\") to package requires section."
@@ -812,14 +840,20 @@ Return new position if changed, nil otherwise."
 
 (defun autofix-jump-to-package-header-end ()
   "Jump to the end of package header end."
-  (autofix-jump-to-package-header-start)
-  (let ((skip-re (concat
-                  "^;;" "[\s]\\(" (string-join
-                                   autofix-package-headers "\\|")
-                  "\\)" ":"
-                  "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
-    (while (looking-at skip-re)
-      (re-search-forward skip-re nil t 1))))
+  (when-let* ((start (autofix-jump-to-package-header-start))
+              (end (save-excursion
+                     (autofix-jump-to-header-end)
+                     (re-search-backward "^;;; Commentary:"
+                                         nil t 1)
+                     (point))))
+    (while (re-search-forward
+            (concat
+             "^;;" "[\s]\\(" (string-join
+                              autofix-package-headers "\\|")
+             "\\)" ":"
+             "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")
+            end t 1)
+      (setq start (point)))))
 
 (defun autofix-confirm-and-replace-region (beg end replacement)
   "Replace region between BEG and END with REPLACEMENT.
@@ -1102,6 +1136,31 @@ SYMB can be either symbol, either string."
         (cons 'easy-mmode-define-minor-mode 2)))
 
 
+(defun autofix-jump-to-defun-body ()
+  "Jump to the body start in the current function."
+  (let ((found nil))
+    (when-let ((start (car-safe (nth 9 (syntax-ppss (point))))))
+      (goto-char start)
+      (when-let* ((sexp (sexp-at-point))
+                  (sexp-type (car-safe sexp)))
+        (not (setq found (and (or
+                               (eq sexp-type 'defun)
+                               (eq sexp-type 'cl-defun))
+                              (and (listp sexp)
+                                   (symbolp (nth 1 sexp))
+                                   (listp (nth 2 sexp))))))
+        (when found
+          (down-list)
+          (forward-sexp 3)
+          (skip-chars-forward "\s\t\n")
+          (when (looking-at "\"")
+            (forward-sexp 1)
+            (skip-chars-forward "\s\t\n"))
+          (when (looking-at "[(]interactive[^a-zZ-A]")
+            (forward-sexp 1)
+            (skip-chars-forward "\s\t\n"))
+          (point))))))
+
 ;;;###autoload
 (defun autofix-add-fbound ()
   "Wrap function call in fbound."
@@ -1162,13 +1221,13 @@ SYMB can be either symbol, either string."
                                           'elisp-bundle--provided-feature)
                                      (elisp-bundle--provided-feature))))))
                      (beginning-of-defun)
-                     (let ((libs (mapcar 'symbol-name
+                     (let ((libs (mapcar #'symbol-name
                                          (autofix-get-requires-from-sexp
                                           (sexp-at-point)))))
                        (message "libs %s" libs)
                        (unless (member lib libs)
                          (forward-char 1)
-                         (autofix-jump-to-body-start)
+                         (autofix-jump-to-defun-body)
                          (insert (format "(require '%s)" lib))
                          (newline-and-indent))))))))))))
 
@@ -1208,30 +1267,6 @@ SYMB can be either symbol, either string."
     (:defsubst . "Inline Functions")
     (:cl-defsubst . "Inline Functions")))
 
-(defun autofix-jump-to-body-start ()
-  "Parse list at point and return alist of form (symbol-name args doc deftype).
-E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
-  (let ((found nil))
-    (when-let ((start (car-safe (nth 9 (syntax-ppss (point))))))
-      (goto-char start)
-      (when-let* ((sexp (sexp-at-point))
-                  (sexp-type (car-safe sexp)))
-        (not (setq found (and (or (eq sexp-type 'defun)
-                                  (eq sexp-type 'cl-defun))
-                              (and (listp sexp)
-                                   (symbolp (nth 1 sexp))
-                                   (listp (nth 2 sexp))))))
-        (when found
-          (down-list)
-          (forward-sexp 3)
-          (skip-chars-forward "\s\t\n")
-          (when (looking-at "\"")
-            (forward-sexp 1)
-            (skip-chars-forward "\s\t\n"))
-          (when (looking-at "[(]interactive[^a-zZ-A]")
-            (forward-sexp 1)
-            (skip-chars-forward "\s\t\n"))
-          (point))))))
 
 (defun autofix-symbol-keymapp (sym)
   "Return t if value of symbol SYM is a keymap."
@@ -1431,6 +1466,21 @@ See function `autofix-parse-list-at-point'."
           (read-string
            "Copyright author:\s"
            (autofix-author-annotation))))
+
+
+
+;;;###autoload
+(defun autofix-license ()
+  "Insert SPDX-License-Identifier if none."
+  (interactive)
+  (unless (or (not autofix-spdx-license)
+              (autofix-header-get-regexp-info
+               "\\(;; SPDX-License-Identifier: \\([a-zZ-A][^\n]+\\)\\)"))
+    (autofix-jump-to-package-header-end)
+    (insert (concat ";; SPDX-License-Identifier: " autofix-spdx-license
+                    (if (looking-at "[^\n]")
+                        "\n\n"
+                      (if (looking-at "\n\n") "" "\n"))))))
 
 ;;;###autoload
 (defun autofix-copyright ()
@@ -1819,8 +1869,8 @@ To customize this behavior see variable `autofix-quote-regexp'."
 (defun autofix ()
   "Apply all functions from `autofix-functions'.
 
-Default code fixes includes auto adding auto load comments before all interactive
-commands and removing unused (declare-function ...) forms.
+Default code fixes includes auto adding auto load comments before all
+interactive commands and removing unused (declare-function ...) forms.
 
 Default comments fixes includes fixes for file headers,
 package headers, footer etc.
