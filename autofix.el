@@ -1412,21 +1412,36 @@ See function `autofix-parse-list-at-point'."
       (concat prompt str))))
 
 (defun autofix-ensure-autoload ()
-  "Insert autoload if list at point is a command without autoload comment."
-  (let ((l (autofix-parse-list-at-point)))
-    (pcase (car (reverse l))
-      ('interactive (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
-                      (insert ";;;###autoload\n")
-                      t))
-      ((or 'transient-define-prefix 'transient-define-suffix)
-       (when (= 0 (forward-line -1))
-         (let ((line (string-trim
-                      (buffer-substring-no-properties (point)
-                                                      (line-end-position)))))
-           (when (string-empty-p line)
-             (insert (format ";;;###autoload (autoload '%s %s nil t)"
-                             (car l)
-                             (prin1-to-string (lm-get-package-name)))))))))))
+	"Insert autoload if list at point is a command without autoload comment."
+	(let ((l (autofix-parse-list-at-point)))
+		(pcase l
+			(`(,(and name (guard (stringp name))
+							 (guard (not (string-match-p "[-][-]" name))))
+				 ,_ ,_ interactive)
+			 (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
+         (insert ";;;###autoload\n")
+         t))
+			(`(,(and name (guard (stringp name))
+							 (guard (not (string-match-p "[-][-]" name))))
+				 ,_ ,_ ,(or 'transient-define-prefix 'transient-define-suffix))
+			 (let ((rep (format
+									 ";;;###autoload (autoload '%s %s nil t)"
+									 (car l)
+									 (prin1-to-string
+										(lm-get-package-name)))))
+				 (when (save-excursion
+								 (or (not (zerop (forward-line -1)))
+										 (let ((beg (point)))
+											 (if (not (re-search-forward ";;;###autoload[\s\t]?+"
+																									 (line-end-position)
+																									 t
+																									 1))
+													 t
+												 (replace-region-contents beg (line-end-position)
+																									(lambda ()
+																										rep))
+												 nil))))
+					 (insert (concat rep "\n"))))))))
 
 (defun autofix-make-short-annotation ()
   "Trim prefix from buffer file name base."
