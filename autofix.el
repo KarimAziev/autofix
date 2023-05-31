@@ -515,11 +515,11 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 
 ;;;###autoload
 (defun autofix-author ()
-  "Add current user as new author to existing or new author section."
-  (interactive)
+	"Add current user as new author to existing or new author section."
+	(interactive)
   (when-let ((annotation (autofix-author-annotation)))
     (if-let
-        ((author-header
+				((author-header
           (autofix-header-get-regexp-info
            "^;;[\s]Author:\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
         (unless (string-match-p (autofix-get-user-email)
@@ -539,7 +539,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                 (delete-overlay overlay))
               (when confirmed
                 (replace-region-contents beg end (lambda () rep))))))
-      (when (autofix-jump-to-package-header-start)
+      (when (autofix-jump-to-package-header-end)
         (insert
          (concat (if (looking-back "\n\n" 0) "" "\n")
                  ";; Author:\s" annotation "\n"
@@ -839,13 +839,13 @@ If TOP-LEVEL is non nil, return only top-levels calls."
     (autofix-add-package-require-lib required)))
 
 (defun autofix-jump-to-package-header-end ()
-  "Jump to the end of package header end."
-  (when-let* ((start (autofix-jump-to-package-header-start))
+	"Jump to the end of package header end."
+	(when-let* ((start (autofix-jump-to-package-header-start))
               (end (save-excursion
                      (autofix-jump-to-header-end)
-                     (re-search-backward "^;;; Commentary:"
-                                         nil t 1)
-                     (point))))
+										 (re-search-backward "^;;; Commentary:"
+																				 nil t 1)
+										 (max start (point)))))
     (while (re-search-forward
             (concat
              "^;;" "[\s]\\(" (string-join
@@ -853,7 +853,11 @@ If TOP-LEVEL is non nil, return only top-levels calls."
              "\\)" ":"
              "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")
             end t 1)
-      (setq start (point)))))
+      (setq start (point)))
+		(when (looking-at ";")
+			(end-of-line)
+			(newline))
+		(point)))
 
 (defun autofix-confirm-and-replace-region (beg end replacement)
   "Replace region between BEG and END with REPLACEMENT.
@@ -878,11 +882,11 @@ It will be called without arguments."
 
 ;;;###autoload
 (defun autofix-header-body-comment ()
-  "Add additional comments after package headers.
+	"Add additional comments after package headers.
 Default vaiue is comment starting with \"This file is NOT part of
 GNU Emacs...\"),
 To change the value customize the variable `autofix-comment-section-body'."
-  (interactive)
+	(interactive)
   (when autofix-comment-section-body
     (autofix-jump-to-package-header-end)
     (unless (re-search-forward autofix-comment-section-body nil t 1)
@@ -899,7 +903,9 @@ To change the value customize the variable `autofix-comment-section-body'."
             "\n"
             (string-trim-left
              autofix-comment-section-body)))
-        (insert (concat (if (looking-back "\n\n" 0) "\n" "\n")
+        (insert (concat (if (looking-back "\n\n" 0)
+														"\n"
+													"\n\n")
                         autofix-comment-section-body))))))
 
 ;;;###autoload
@@ -938,9 +944,9 @@ With optional argument FORCE regenerate them even if valid."
               "\n"))))
 
 (defun autofix-jump-to-package-header-start ()
-  "Jump to the start of package header section or to place for new."
-  (goto-char (point-min))
-  (while (and (looking-at ";;;\\|\\(;;[\s]Copyright[\s]\\)\\|\n")
+	"Jump to the start of package header section or to place for new."
+	(goto-char (point-min))
+  (while (and (looking-at ";;;\\|\\(;;[\s]Copyright[\s]\\)\\|\n;")
               (not (looking-at ";;;###autoload")))
     (forward-line 1))
   (when (looking-at ";;;###autoload")
