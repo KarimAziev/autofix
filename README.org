@@ -24,35 +24,33 @@ Download repository and it to your load path in your init file:
 *** With use-package and straight
 
 #+begin_src elisp :eval no
-
 (use-package autofix
-	:straight (autofix
-			       :repo "KarimAziev/autofix"
-			       :type git
-			       :host github)
-	:bind ((:map autofix-multi-completion-map
-			         ("C-<return>" . autofix-throw-done)
-			         ("C-M-j" . autofix-throw-done)))
-	:commands (autofix
-			       autofix-function-name-quoting
-			       autofix-footer
-			       autofix-remove-unused-declarations
-			       autofix-header
-			       autofix-autoloads
-			       autofix-commentary
-			       autofix-code-comment
-			       autofix-header-first-line
-			       autofix-scan-extract-all-docs
-			       autofix-annotate-buffer
-			       autofix-url
-			       autofix-copyright
-			       autofix-keywords
-			       autofix-header-body-comment
-			       autofix-package-requires
-			       autofix-version
-			       autofix-update-version
-			       autofix-author))
-
+  :straight (autofix
+             :repo "KarimAziev/autofix"
+             :type git
+             :host github)
+  :bind ((:map autofix-multi-completion-map
+               ("C-<return>" . autofix-throw-done)
+               ("C-M-j" . autofix-throw-done)))
+  :commands (autofix
+             autofix-function-name-quoting
+             autofix-footer
+             autofix-remove-unused-declarations
+             autofix-header
+             autofix-autoloads
+             autofix-commentary
+             autofix-code-comment
+             autofix-header-first-line
+             autofix-scan-extract-all-docs
+             autofix-annotate-buffer
+             autofix-url
+             autofix-copyright
+             autofix-keywords
+             autofix-header-body-comment
+             autofix-package-requires
+             autofix-version
+             autofix-update-version
+             autofix-author))
 #+end_src
 
 ** Minor mode
