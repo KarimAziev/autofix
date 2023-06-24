@@ -7,7 +7,7 @@ Automatically fix common code style issues in Elisp.
 * Table of Contents                                       :TOC_2_gh:QUOTE:
 #+BEGIN_QUOTE
 - [[#about][About]]
-- [[#requirenments][Requirenments]]
+- [[#requirements][Requirements]]
 - [[#installation][Installation]]
   - [[#with-use-package-and-straightel][With use-package and straight.el]]
   - [[#manual-installation][Manual installation]]
@@ -17,7 +17,7 @@ Automatically fix common code style issues in Elisp.
   - [[#customization][Customization]]
 #+END_QUOTE
 
-* Requirenments
+* Requirements
 
 | Name           | Version |
 |----------------+---------|
