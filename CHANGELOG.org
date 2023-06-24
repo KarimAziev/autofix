@@ -1,0 +1,2 @@
+* v0.6.0    2023-06-24
+- Replace custom variable ~autofix-quote-regexp~ with ~autofix-shartpquote-symbols-spec~.
