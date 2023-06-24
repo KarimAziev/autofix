@@ -993,9 +993,9 @@ With optional argument FORCE regenerate them even if valid."
   (let ((map (make-sparse-keymap)))
     (define-key map
                 (kbd "C-<return>")
-                'autofix--throw-done)
+                #'autofix--throw-done)
     (define-key map (kbd "C-M-j")
-                'autofix--throw-done)
+                #'autofix--throw-done)
     map)
   "Keymap used in `autofix-read-keyword'.")
 
@@ -1724,7 +1724,7 @@ If PROMPT-FN is non nil, it should return nil to inhibit replacing."
             (forward-sexp -1)
             (when (and (looking-at "'")
                        (or (not prompt-fn)
-                           (funcall 'autofix-overlay-prompt-region
+                           (funcall #'autofix-overlay-prompt-region
                                     (point)
                                     end
                                     `(before-string ,(propertize "#" 'face
