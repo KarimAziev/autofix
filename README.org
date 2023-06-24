@@ -139,7 +139,7 @@ Transforms to:
 (mapcar #'car '(a b c d))
 #+end_src
 
-You can customize rules by customing a variable =autofix-shartpquote-symbols-spec=.
+You can customize rules by customing a variable =autofix-sharpquote-symbols-spec=.
 
 **** ~autofix-scan-extract-all-docs~
 Return string with all docs in all buffer. If called interactively also copies it.
@@ -174,7 +174,7 @@ List of functions to apply with command =autofix=.
 **** ~autofix-spdx-license~
 Default =spdx= short-form identifier.
 
-**** ~autofix-shartpquote-symbols-spec~
+**** ~autofix-sharpquote-symbols-spec~
 Alist of symbols and required sharpquote positions. Each element is a cons which car is either symbol or list of symbols, which cdr is a position of children element, that should be sharquoted.
 **** ~autofix-comment-section-body~
 Static text for adding in header comment section. It doesn't includes dynamic variables such author, year etc.

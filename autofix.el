@@ -74,13 +74,13 @@
 ;;      Fix or create the first comment line in the header.
 
 ;; M-x `autofix-sharpquotes' (&optional no-prompt)
-;;      Add sharpquotes according to `autofix-shartpquote-symbols-spec'.
+;;      Add sharpquotes according to `autofix-sharpquote-symbols-spec'.
 ;;      With optional argument NO-PROMPT replace occurrences without prompting.
 ;;      For example, such code:
 ;;      (mapcar \='car \='((a . 2) (b . 2) (c . 3)))
 ;;      Transforms to:
 ;;      (mapcar #\='car \='((a . 2) (b . 2) (c . 3))).
-;;      To customize this behavior see variable `autofix-shartpquote-symbols-spec'.
+;;      To customize this behavior see variable `autofix-sharpquote-symbols-spec'.
 
 ;; M-x `autofix-scan-extract-all-docs'
 ;;      Return string with all docs in all buffer.
@@ -151,47 +151,47 @@ It doesn't includes dynamic variables such author, year etc."
   :group 'autofix)
 
 
-(defcustom autofix-shartpquote-symbols-spec '(((mapconcat
-                                                mapc
-                                                mapcan
-                                                funcall
-                                                mapcar
-                                                seq-map
-                                                seq-map-indexed
-                                                seq-mapcat
-                                                seq-mapn
-                                                seq-take-while
-                                                seq-sort-by
-                                                seq-sort
-                                                seq-reduce
-                                                seq-remove
-                                                seq-drop-while
-                                                seq-some
-                                                seq-find
-                                                seq-filter
-                                                seq-do
-                                                seq-do-indexed
-                                                apply-on-rectangle
-                                                apply-partially
-                                                defalias
-                                                cl-assoc-if
-                                                callf
-                                                call-interactively
-                                                apply
-                                                cancel-function-timers
-                                                funcall-interactively)
-                                               . 1)
-                                              ((add-hook
-                                                remove-hook
-                                                local-set-key
-                                                run-hook-wrapped
-                                                global-set-key advice-remove)
-                                               . 2)
-                                              ((run-with-idle-timer define-key
-                                                                    advice-add
-                                                                    run-with-timer
-                                                                    run-at-time)
-                                               . 3))
+(defcustom autofix-sharpquote-symbols-spec '(((mapconcat
+                                               mapc
+                                               mapcan
+                                               funcall
+                                               mapcar
+                                               seq-map
+                                               seq-map-indexed
+                                               seq-mapcat
+                                               seq-mapn
+                                               seq-take-while
+                                               seq-sort-by
+                                               seq-sort
+                                               seq-reduce
+                                               seq-remove
+                                               seq-drop-while
+                                               seq-some
+                                               seq-find
+                                               seq-filter
+                                               seq-do
+                                               seq-do-indexed
+                                               apply-on-rectangle
+                                               apply-partially
+                                               defalias
+                                               cl-assoc-if
+                                               callf
+                                               call-interactively
+                                               apply
+                                               cancel-function-timers
+                                               funcall-interactively)
+                                              . 1)
+                                             ((add-hook
+                                               remove-hook
+                                               local-set-key
+                                               run-hook-wrapped
+                                               global-set-key advice-remove)
+                                              . 2)
+                                             ((run-with-idle-timer define-key
+                                                                   advice-add
+                                                                   run-with-timer
+                                                                   run-at-time)
+                                              . 3))
   "Alist of symbols and required sharpquote positions.
 Each element is a cons which car is either symbol or list of symbols,
 which cdr is a position of children element, that should be sharquoted."
@@ -1719,7 +1719,7 @@ If PROMPT-FN is non nil, it should return nil to inhibit replacing."
                  (symbolp sym))
         (let ((parse-sexp-ignore-comments t))
           (down-list 1)
-          (forward-sexp 3)
+          (forward-sexp (1+ symb-pos))
           (let ((end (point)))
             (forward-sexp -1)
             (when (and (looking-at "'")
@@ -1740,7 +1740,7 @@ If PROMPT-FN is non nil, it should return nil to inhibit replacing."
 
 ;;;###autoload
 (defun autofix-sharpquotes (&optional no-prompt)
-  "Add sharpquotes according to `autofix-shartpquote-symbols-spec'.
+  "Add sharpquotes according to `autofix-sharpquote-symbols-spec'.
 
 With optional argument NO-PROMPT replace occurrences without prompting.
 
@@ -1752,7 +1752,7 @@ Transforms to:
 
 \(mapcar #\\='car \\='((a . 2) (b . 2) (c . 3))).
 
-To customize this behavior see variable `autofix-shartpquote-symbols-spec'."
+To customize this behavior see variable `autofix-sharpquote-symbols-spec'."
   (interactive "P")
   (let* ((confirmed)
          (prompt-fn
@@ -1779,11 +1779,11 @@ To customize this behavior see variable `autofix-shartpquote-symbols-spec'."
     (autofix--sharpquotes prompt-fn)))
 
 (defun autofix--sharpquotes (&optional prompt-fn)
-  "Ensure sharpquotes according to `autofix-shartpquote-symbols-spec'.
+  "Ensure sharpquotes according to `autofix-sharpquote-symbols-spec'.
 
 If PROMPT-FN is non nil, it will be called without argument and should return
 nil to to inhibit replacing."
-  (pcase-dolist (`(,k . ,v) autofix-shartpquote-symbols-spec)
+  (pcase-dolist (`(,k . ,v) autofix-sharpquote-symbols-spec)
     (autofix-fix-sharpquotes k v prompt-fn)))
 
 (defun autofix-fix-sharpquotes (parent-symb symb-pos &optional prompt-fn)
