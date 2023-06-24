@@ -5,7 +5,7 @@
 ;; Author: Karim Aziiev <karim.aziiev@gmail.com>
 ;; URL: https://github.com/KarimAziev/autofix
 ;; Keywords: convenience, docs
-;; Version: 0.5.0
+;; Version: 0.6.0
 ;; Package-Requires: ((emacs "27.1") (package-lint "0.17"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
