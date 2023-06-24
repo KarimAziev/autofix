@@ -1,4 +1,4 @@
-;;; autofix.el --- Autofix elisp packages -*- lexical-binding: t; -*-
+;;; autofix.el --- Automatically fix common code style issues in Elisp -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2022 Karim Aziiev <karim.aziiev@gmail.com>
 
@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/autofix
 ;; Keywords: convenience, docs
 ;; Version: 0.5.0
-;; Package-Requires: ((emacs "27.1") (flymake "1.2.2") (package-lint "0.17"))
+;; Package-Requires: ((emacs "27.1") (package-lint "0.17"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
@@ -26,91 +26,104 @@
 
 ;;; Commentary:
 
-;; A minor mode and commands for code and comment fixes.
+;; Automatically fix common code style issues in Elisp
 
 ;; Usage
 
 ;; M-x `autofix-mode'
 ;; Runs `autofix' on file save when this mode is turned on.
 
+;;; Minor mode
+
+;; `autofix-mode'
+;;      Runs `autofix' on file save when this mode is turned on.
+
+;;; Keymaps
+
+;; `autofix-multi-completion-map'
+
 ;;; Commands
 
 ;; M-x `autofix'
+;;      Apply all functions from `autofix-functions'.
+;;      Default code fixes includes auto adding auto load comments before all
+;;      interactive commands and removing unused (declare-function ...) forms.
+;;      Default comments fixes includes fixes for file headers,
+;;      package headers, footer etc.
+;;      File headers fixes can be customized via `autofix-header-functions'.
 
-;; Apply all code and comments fixes.
+;; M-x `autofix-footer'
+;;      Add of fix file footer (provide ='filename) with comment ends here.
 
-;; Code fixes includes auto adding autoload comments before all interactive
-;; commmands and removing unused (declare-function ...) forms.
-
-;; Comments fixes includes fixes for file headers, package headers, footer etc
-
-;;; Header fixes
+;; M-x `autofix-remove-unused-declarations'
+;;      Remove unused declared functions.
 
 ;; M-x `autofix-header'
-;;      Autofix comments header.
-;; M-x `autofix-header-first-line'
-;;      Fix or create the first comment line in the header.
-;; M-x `autofix-copyright'
-;;      Prompt and fix or make new copyright.
-;; M-x `autofix-author'
-;;      Add current user as new author to existing or new author section.
-;; M-x `autofix-url'
-;;      Return string with generated url.
-;; M-x `autofix-keywords'
-;;      Add or fix package keywords.
-;; M-x `autofix-version'
-;;      Add or fix package version.
-;; M-x `autofix-update-version'
-;;      Update package version.
-;; M-x `autofix-header-body-comment'
-;;      Add additional comments after package headers.
-;;      Default vaiue is the comment starting with "This file is NOT part of GNU Emacs..."),
-;;      To change it customize the variable `autofix-comment-section-body'.
-;; M-x `autofix-package-requires'
-;;      Add or fix package requires section.
-;; M-x `autofix-commentary'
-;;      Add Commentary section in current buffer if none.
-;; M-x `autofix-code-comment'
-;;      Add Code comment to the end of header block.
-;; M-x `autofix-annotate-buffer'
-;;      Add annotatations in header comment section.
-;;      Annotations includes commands and custom variables.
-
-;;; Code fixes
+;;      Apply all functions from `autofix-header-functions'.
 
 ;; M-x `autofix-autoloads'
 ;;      Add autoload comments before all interactive functions in buffer.
-;; M-x `autofix-remove-unused-declarations'
-;;      Remove unused declared functions
-;; M-x  `autofix-function-name-quoting'
-;;      Add a sharp quote (=#’=) when quoting function names.
+
+;; M-x `autofix-commentary'
+;;      Add Commentary section in current buffer if none.
+
+;; M-x `autofix-code-comment'
+;;      Add Code comment to the end of header block.
+
+;; M-x `autofix-header-first-line'
+;;      Fix or create the first comment line in the header.
+
+;; M-x `autofix-sharpquotes' (&optional no-prompt)
+;;      Add sharpquotes according to `autofix-shartpquote-symbols-spec'.
+;;      With optional argument NO-PROMPT replace occurrences without prompting.
 ;;      For example, such code:
-;;      (mapcar 'car '((a . 2) (b . 2) (c . 3)))
-;;      to
-;;      (mapcar #'car '((a . 2) (b . 2) (c . 3)))
-;;
+;;      (mapcar \='car \='((a . 2) (b . 2) (c . 3)))
+;;      Transforms to:
+;;      (mapcar #\='car \='((a . 2) (b . 2) (c . 3))).
+;;      To customize this behavior see variable `autofix-shartpquote-symbols-spec'.
 
-;;; Footer
+;; M-x `autofix-scan-extract-all-docs'
+;;      Return string with all docs in all buffer.
+;;      If called interactively also copies it.
 
-;; M-x `autofix-footer'
-;;      Add of fix file footer (provide 'filename) with comment ends here.
+;; M-x `autofix-annotate-buffer'
+;;      Add annotatations in header comment section.
+;;      Annotations includes commands, custom variables.
 
-;;; Customization
+;; M-x `autofix-url'
+;;      Return string with generated url.
 
-;; `autofix-ignored-file-patterns'
-;;      List of file name bases to ignore.
+;; M-x `autofix-copyright'
+;;      Prompt and fix or make new copyright.
 
-;; `autofix-user-fullname'
-;;      User email to add in header section.
+;; M-x `autofix-license'
+;;      Insert SPDX-License-Identifier if none.
 
-;; `autofix-user-email'
-;;      User email to add in header section.
-;;      Can be string, variable or function.
-;;      Function will be called without args and should return string.
+;; M-x `autofix-add-fbound'
+;;      Wrap function call in fbound.
 
-;; `autofix-comment-section-body'
-;;      Static text for adding in header comment section.
-;;      It doesn't includes dynamic variables such author, year etc.
+;; M-x `autofix--throw-done'
+;;      Throw to the catch for done and return nil from it.
+
+;; M-x `autofix-keywords' (&optional force)
+;;      Add or fix package keywords.
+;;      With optional argument FORCE regenerate them even if valid.
+
+;; M-x `autofix-header-body-comment'
+;;      Add additional comments after package headers.
+
+;; M-x `autofix-package-requires'
+;;      Add or fix package requires section.
+
+;; M-x `autofix-version'
+;;      Add or fix package version.
+
+;; M-x `autofix-update-version'
+;;      Update or add new package version.
+
+;; M-x `autofix-author'
+;;      Add current user as new author to existing or new author section.
+
 
 ;;; Code:
 
@@ -138,51 +151,56 @@ It doesn't includes dynamic variables such author, year etc."
   :group 'autofix)
 
 
-(defcustom autofix-quote-regexp (concat
-                                 "[^'\"]"
-                                 (concat "\\("
-                                         (regexp-opt (mapcar
-                                                      #'symbol-name
-                                                      '(mapconcat
-                                                        mapc
-                                                        mapcan
-                                                        funcall
-                                                        mapcar
-                                                        seq-map
-                                                        seq-map-indexed
-                                                        seq-mapcat
-                                                        seq-mapn
-                                                        seq-take-while
-                                                        seq-sort-by
-                                                        seq-sort
-                                                        seq-reduce
-                                                        seq-remove
-                                                        seq-drop-while
-                                                        seq-some
-                                                        seq-find
-                                                        seq-filter
-                                                        seq-do
-                                                        seq-do-indexed
-                                                        apply-on-rectangle
-                                                        apply-partially
-                                                        defalias
-                                                        cl-assoc-if
-                                                        callf
-                                                        call-interactively
-                                                        apply
-                                                        cancel-function-timers
-                                                        funcall-interactively)))
-                                         "\\|"
-                                         (concat
-                                          (regexp-opt
-                                           (list "add-hook" "remove-hook"))
-                                          "[\s\t\n\r\f]+"
-                                          "'[a-z-+_$0-9]+")
-                                         "\\)")
-                                 "[\s\t\n\r\f]+'")
-  "Regexp to replace last char with '#."
-  :type 'regexp
-  :group 'autofix)
+(defcustom autofix-shartpquote-symbols-spec '(((mapconcat
+                                                mapc
+                                                mapcan
+                                                funcall
+                                                mapcar
+                                                seq-map
+                                                seq-map-indexed
+                                                seq-mapcat
+                                                seq-mapn
+                                                seq-take-while
+                                                seq-sort-by
+                                                seq-sort
+                                                seq-reduce
+                                                seq-remove
+                                                seq-drop-while
+                                                seq-some
+                                                seq-find
+                                                seq-filter
+                                                seq-do
+                                                seq-do-indexed
+                                                apply-on-rectangle
+                                                apply-partially
+                                                defalias
+                                                cl-assoc-if
+                                                callf
+                                                call-interactively
+                                                apply
+                                                cancel-function-timers
+                                                funcall-interactively)
+                                               . 1)
+                                              ((add-hook
+                                                remove-hook
+                                                local-set-key
+                                                run-hook-wrapped
+                                                global-set-key advice-remove)
+                                               . 2)
+                                              ((run-with-idle-timer define-key
+                                                                    advice-add
+                                                                    run-with-timer
+                                                                    run-at-time)
+                                               . 3))
+  "Alist of symbols and required sharpquote positions.
+Each element is a cons which car is either symbol or list of symbols,
+which cdr is a position of children element, that should be sharquoted."
+  :group 'autofix
+  :type '(alist
+          :key-type (radio :tag "Symbol or symbols"
+                           (symbol :tag "Symbol")
+                           (repeat :tag "Symbols" symbol))
+          :value-type integer))
 
 (defcustom autofix-header-functions '(autofix-header-first-line
                                       autofix-copyright
@@ -354,13 +372,23 @@ Function will be called without args and should return string."
   :type '(repeat (regexp :tag "Regexp"))
   :group 'autofix)
 
-(defun autofix-overlay-prompt-region (beg end fn &rest args)
-  "Highlight region from BEG to END while invoking FN with ARGS."
+(defun autofix-overlay-add-props (overlay props)
+  "Add plist PROPS to OVERLAY."
+  (dotimes (idx (length props))
+    (when (eq (logand idx 1) 0)
+      (let* ((prop-name (nth idx props))
+             (val (plist-get props prop-name)))
+        (overlay-put overlay prop-name val))))
+  overlay)
+
+(defun autofix-overlay-prompt-region (beg end overlay-props fn &rest args)
+  "Highlight region from BEG to END while invoking FN with ARGS.
+OVERLAY-PROPS is a plist to add in overlay."
   (let ((overlay (make-overlay beg end)))
     (unwind-protect
         (progn
           (goto-char beg)
-          (overlay-put overlay 'face 'diary)
+          (autofix-overlay-add-props overlay overlay-props)
           (apply fn args))
       (delete-overlay overlay))))
 
@@ -883,7 +911,7 @@ It will be called without arguments."
 ;;;###autoload
 (defun autofix-header-body-comment ()
   "Add additional comments after package headers.
-Default vaiue is comment starting with \"This file is NOT part of
+Default value is comment starting with \"This file is NOT part of
 GNU Emacs...\"),
 To change the value customize the variable `autofix-comment-section-body'."
   (interactive)
@@ -955,8 +983,8 @@ With optional argument FORCE regenerate them even if valid."
 
 (defvar finder-known-keywords)
 
-;;;###autoload
-(defun autofix-throw-done ()
+
+(defun autofix--throw-done ()
   "Throw to the catch for done and return nil from it."
   (interactive)
   (throw 'done nil))
@@ -965,9 +993,9 @@ With optional argument FORCE regenerate them even if valid."
   (let ((map (make-sparse-keymap)))
     (define-key map
                 (kbd "C-<return>")
-                'autofix-throw-done)
+                'autofix--throw-done)
     (define-key map (kbd "C-M-j")
-                'autofix-throw-done)
+                'autofix--throw-done)
     map)
   "Keymap used in `autofix-read-keyword'.")
 
@@ -999,7 +1027,7 @@ With optional argument FORCE regenerate them even if valid."
                             map)))
                      (completing-read
                       (concat "Keywords\s" (substitute-command-keys "(`\\<autofix-multi-completion-map>\
-\\[autofix-throw-done]' to finish)\s")
+\\[autofix--throw-done]' to finish)\s")
                               (if choices
                                   (concat
                                    "("
@@ -1539,7 +1567,7 @@ See function `autofix-parse-list-at-point'."
 
 ;;;###autoload
 (defun autofix-url ()
-  "Return string with generated url."
+  "Add package header with URL."
   (interactive)
   (when-let ((remotes (autofix-repo-urls)))
     (save-excursion
@@ -1553,14 +1581,18 @@ See function `autofix-parse-list-at-point'."
                 (unless (member curr-url remotes)
                   (autofix-overlay-prompt-region
                    beg end
-                   (lambda () (let ((url (if (= 1 (length remotes))
-                                        (read-string ";; URL: " (car remotes))
-                                      (completing-read ";; URL:  " remotes))))
-                           (replace-region-contents beg end (lambda () (concat
-                                                                   "\s"
-                                                                   url))))))))))
+                   '(face success)
+                   (lambda ()
+                     (let ((url (if (= 1 (length remotes))
+                                    (read-string ";; URL: " (car remotes))
+                                  (completing-read ";; URL:  " remotes))))
+                       (replace-region-contents beg end (lambda ()
+                                                          (concat
+                                                           "\s"
+                                                           url))))))))))
         (autofix-jump-to-package-header-end)
-        (insert (if (looking-back "\n" 0) "" "\n") ";; URL: "
+        (insert (if (looking-back "\n" 0) "" "\n")
+                ";; URL: "
                 (if (= 1 (length remotes))
                     (read-string ";; URL: " (car remotes))
                   (completing-read ";; URL: " remotes))
@@ -1664,12 +1696,124 @@ If called interactively also copies it."
           spaces))
       (when (looking-back "\\." 0)
         (forward-char -1)
-        (let ((pos (point) ))
+        (let ((pos (point)))
           (when (autofix-overlay-prompt-region
                  pos
-                 (1+ pos) 'yes-or-no-p
+                 (1+ pos) '(face error) 'yes-or-no-p
                  "The package summary should not end with a period. Remove?")
             (delete-char 1)))))))
+
+(defun autofix-sharpquote-sexp (symb-pos &optional prompt-fn)
+  "Maybe add sharpquote to item at SYMB-POS in sexp at point.
+Sharpquote will be added if item is a quoted symbol.
+If PROMPT-FN is non nil, it should return nil to inhibit replacing."
+  (with-syntax-table emacs-lisp-mode-syntax-table
+    (let* ((sexp (sexp-at-point))
+           (item
+            (when (proper-list-p sexp)
+              (nth symb-pos sexp)))
+           (sym
+            (when (eq (car-safe item) 'quote)
+              (car-safe (cdr-safe item)))))
+      (when (and sym
+                 (symbolp sym))
+        (let ((parse-sexp-ignore-comments t))
+          (down-list 1)
+          (forward-sexp 3)
+          (let ((end (point)))
+            (forward-sexp -1)
+            (when (and (looking-at "'")
+                       (or (not prompt-fn)
+                           (funcall 'autofix-overlay-prompt-region
+                                    (point)
+                                    end
+                                    `(before-string ,(propertize "#" 'face
+                                                                 'success)
+                                                    face
+                                                    error)
+                                    prompt-fn)))
+              (insert "#")
+              t)))))))
+
+;;;###autoload
+(defalias 'autofix-function-name-quoting #'autofix-sharpquotes)
+
+;;;###autoload
+(defun autofix-sharpquotes (&optional no-prompt)
+  "Add sharpquotes according to `autofix-shartpquote-symbols-spec'.
+
+With optional argument NO-PROMPT replace occurrences without prompting.
+
+For example, such code:
+
+\(mapcar \\='car \\='((a . 2) (b . 2) (c . 3)))
+
+Transforms to:
+
+\(mapcar #\\='car \\='((a . 2) (b . 2) (c . 3))).
+
+To customize this behavior see variable `autofix-shartpquote-symbols-spec'."
+  (interactive "P")
+  (let* ((confirmed)
+         (prompt-fn
+          (unless no-prompt
+            (lambda ()
+              (if (eq confirmed ?!)
+                  t
+                (setq confirmed
+                      (car
+                       (read-multiple-choice "Replace?"
+                                             '((?y "yes"
+                                                   "perform the action")
+                                               (?n "no"
+                                                   "skip to the next")
+                                               (?! "all"
+                                                   "accept all remaining without more questions")
+                                               (?h "help"
+                                                   "show help")
+                                               (?q "quit" "exit")))))
+                (pcase confirmed
+                  (?q (keyboard-quit))
+                  ((or ?y ?!)
+                   t)))))))
+    (autofix--sharpquotes prompt-fn)))
+
+(defun autofix--sharpquotes (&optional prompt-fn)
+  "Ensure sharpquotes according to `autofix-shartpquote-symbols-spec'.
+
+If PROMPT-FN is non nil, it will be called without argument and should return
+nil to to inhibit replacing."
+  (pcase-dolist (`(,k . ,v) autofix-shartpquote-symbols-spec)
+    (autofix-fix-sharpquotes k v prompt-fn)))
+
+(defun autofix-fix-sharpquotes (parent-symb symb-pos &optional prompt-fn)
+  "Ensure sharpquotes in lists which car is PARENT-SYMB with symbol at SYMB-POS.
+Sharpquote will be added if item is a quoted symbol.
+PARENT-SYMB should be either symbol or list of symbols.
+If PROMPT-FN is non nil, it will be applied with ARGS and should return nil to
+to inhibit replacing."
+  (with-syntax-table emacs-lisp-mode-syntax-table
+    (let ((regex (regexp-opt (if (symbolp parent-symb)
+                                 (list (symbol-name parent-symb))
+                               (mapcar #'symbol-name parent-symb))
+                             'symbols))
+          (results))
+      (save-excursion
+        (goto-char (point-max))
+        (while (re-search-backward regex nil t 1)
+          (let ((stx (syntax-ppss (point))))
+            (unless (or (nth 3 stx)
+                        (nth 4 stx)
+                        (autofix-elisp-move-with 'backward-sexp))
+              (when (autofix-backward-up-list)
+                (unless (looking-back "[`']" 0)
+                  (save-excursion
+                    (when (autofix-sharpquote-sexp symb-pos prompt-fn)
+                      (push (point) results))))))))
+        results))))
+
+
+
 
 ;;;###autoload
 (defun autofix-header-first-line ()
@@ -1797,7 +1941,7 @@ If called interactively also copies it."
 
 ;;;###autoload
 (defun autofix-remove-unused-declarations ()
-  "Removed unused declared functions."
+  "Remove unused declared functions."
   (interactive)
   (let* ((declarations-re (mapcar (lambda (it)
                                     (regexp-quote (car it)))
@@ -1864,26 +2008,6 @@ If called interactively also copies it."
         (goto-char (point-max))
         (insert (if (looking-back "\n" 0) "" "\n")
                 (concat "(provide " "'" name ")" "\n" footer-end))))))
-
-;;;###autoload
-(defun autofix-function-name-quoting ()
-  "Add a sharp quote (=#’=) when quoting function names.
-
-For example, such code:
-
-\(mapcar \\='car \\='((a . 2) (b . 2) (c . 3)))
-
-Transforms to:
-
-\(mapcar #\\='car \\='((a . 2) (b . 2) (c . 3))).
-
-To customize this behavior see variable `autofix-quote-regexp'."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (autofix-re-search-forward autofix-quote-regexp nil t 1)
-      (let ((pos (point)))
-        (replace-region-contents (1- pos) pos (lambda () "#'"))))))
 
 
 ;;;###autoload

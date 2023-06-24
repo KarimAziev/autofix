@@ -1,28 +1,33 @@
-* autofix
+#+OPTIONS: ^:nil tags:nil
 
-Code and comment fixes for emacs-lisp packages.
+* About
 
-** Requirements
-+ Emacs >= 27.1
-+ finder (optional)
-+ package-lint
+Automatically fix common code style issues in Elisp.
 
-** Installation
+* Table of Contents                                       :TOC_2_gh:QUOTE:
+#+BEGIN_QUOTE
+- [[#about][About]]
+- [[#requirenments][Requirenments]]
+- [[#installation][Installation]]
+  - [[#with-use-package-and-straightel][With use-package and straight.el]]
+  - [[#manual-installation][Manual installation]]
+- [[#usage][Usage]]
+  - [[#minor-mode][Minor mode]]
+  - [[#commands][Commands]]
+  - [[#customization][Customization]]
+#+END_QUOTE
 
-*** Manually
+* Requirenments
 
-Download repository and it to your load path in your init file:
+| Name           | Version |
+|----------------+---------|
+| Emacs          |    27.1 |
+| ~package-lint~ |    0.17 |
 
-#+begin_src elisp :eval no
 
-(add-to-list 'load-path "/path/to/autofix)
+* Installation
 
-(require 'autofix)
-
-#+end_src
-
-*** With use-package and straight
-
+** With use-package and straight.el
 #+begin_src elisp :eval no
 (use-package autofix
   :straight (autofix
@@ -33,7 +38,6 @@ Download repository and it to your load path in your init file:
                ("C-<return>" . autofix-throw-done)
                ("C-M-j" . autofix-throw-done)))
   :commands (autofix
-             autofix-function-name-quoting
              autofix-footer
              autofix-remove-unused-declarations
              autofix-header
@@ -41,10 +45,13 @@ Download repository and it to your load path in your init file:
              autofix-commentary
              autofix-code-comment
              autofix-header-first-line
+             autofix-sharpquotes
              autofix-scan-extract-all-docs
              autofix-annotate-buffer
              autofix-url
              autofix-copyright
+             autofix-license
+             autofix-add-fbound
              autofix-keywords
              autofix-header-body-comment
              autofix-package-requires
@@ -53,86 +60,123 @@ Download repository and it to your load path in your init file:
              autofix-author))
 #+end_src
 
+** Manual installation
+
+Download the source code and put it wherever you like, e.g. into =~/.emacs.d/autofix/=
+
+#+begin_src shell :eval no
+git clone https://github.com/KarimAziev/autofix.git ~/.emacs.d/autofix/
+#+end_src
+
+Add the downloaded directory to the load path:
+
+#+begin_src elisp :eval no
+(add-to-list 'load-path "~/.emacs.d/autofix/")
+(require 'autofix)
+#+end_src
+
+* Usage
+
 ** Minor mode
 
-*** ~autofix-mode~
-Runs ~autofix~ on file save when this mode is turned on.
+**** ~autofix-mode~
+Runs =autofix= on file save when this mode is turned on.
 
 ** Commands
-*** Fix all
-+ ~autofix~
-Apply all code and comments fixes. Code fixes includes auto adding autoload comments before all interactive commmands and removing unused (declare-function ...) forms. Comments fixes includes fixes for file headers, package headers, footer etc.
 
-*** Fix file footer
-+ ~autofix-footer~
-Add of fix file footer (provide 'filename) with comment ends here.
+**** ~autofix~
+Apply all functions from =autofix-functions=. Default code fixes includes auto adding auto load comments before all interactive commands and removing unused (declare-function ...) forms. Default comments fixes includes fixes for file headers, package headers, footer etc. File headers fixes can be customized via =autofix-header-functions=.
 
-*** Fix header comments
-
-+ ~autofix-header~
-Apply all header fixes for header comments except ~autofix-annotate-buffer~.
-
-+ ~autofix-annotate-buffer~
-Add annotatations in header comment section. Annotations includes commands, custom variables.
-
-+ ~autofix-header-first-line~
-Fix or create the first comment line in the header.
-
-+ ~autofix-commentary~
-Add Commentary section in current buffer if none.
-
-+ ~autofix-code-comment~
-Add Code comment to the end of header block.
-
-+ ~autofix-url~
-Return string with generated url.
-
-+ ~autofix-copyright~
-Prompt and fix or make new copyright.
-
-+ ~autofix-keywords~
-Add or fix package keywords.
-
-+ ~autofix-header-body-comment~
-Add additional comments after package headers. Default vaiue is comment starting with "This file is NOT part of GNU Emacs..."), To change the value customize the variable ~autofix-comment-section-body~.
-
-+ ~autofix-package-requires~
-Add or fix package requires section.
-
-+ ~autofix-version~
-Add or fix package version.
-
-+ ~autofix-author~
-Add current user as new author to existing or new author section.
-
-*** Code fixes
-+ ~autofix-autoloads~
-Add autoload comments before all interactive functions in buffer.
-+ ~autofix-remove-unused-declarations~
-Removed unused declared functions.
-+ ~autofix-function-name-quoting~
-Add a sharp quote (=#'=) when quoting function names. For example, such code:
+**** ~autofix-footer~
+Add of fix file footer e.g. in the file =myfile.el= it will add or replace:
 
 #+begin_src emacs-lisp
-(mapcar 'car '((a . 2) (b . 2) (c . 3)))
+(provide 'myfile)
+;;; myfile.el ends here
+#+end_src
+
+**** ~autofix-remove-unused-declarations~
+
+Check usage and remove unused declarations:
+
+#+begin_src emacs-lisp
+(declare-function unused-function)
+#+end_src
+
+**** ~autofix-header~
+Apply fixes for header comments. 
+
+| Command                       | Description                                                                    |
+|-------------------------------+--------------------------------------------------------------------------------|
+| =autofix-header-first-line=   | Fix or create the first comment line in the header                             |
+| =autofix-copyright=           | Prompt and fix or make new copyright                                           |
+| =autofix-author=              | Add or fix author                                                              |
+| =autofix-url=                 | Add of fix URL                                                                 |
+| =autofix-version=             | Add or fix package version                                                     |
+| =autofix-keywords=            | Add or fix package keywords                                                    |
+| =autofix-package-requires=    | Add or fix package requires section                                            |
+| =autofix-header-body-comment= | Add comment body (~M-x autofix-comment-section-body~)                          |
+| =autofix-commentary=          | Add Commentary section in current buffer if none                               |
+| =autofix-code-comment=        | Add Code comment to the end of header block                                    |
+| =autofix-license=             | Add SPDX short-form identifier (~M-x customize-variable autofix-spdx-license~) |
+|                               |                                                                                |
+
+ You can add or remove commands by customizing the variable =autofix-header-functions=.
+
+**** ~autofix-autoloads~
+Add autoload comments before commands in buffer, that doesn't look like private.
+
+**** ~autofix-sharpquotes~
+Add a sharpquote (=#'=) when quoting function names. For example, such code:
+
+#+begin_src emacs-lisp
+(mapcar 'car '(a b c d))
 #+end_src
 
 Transforms to:
 
 #+begin_src emacs-lisp
-(mapcar #'car '((a . 2) (b . 2) (c . 3)))
+(mapcar #'car '(a b c d))
 #+end_src
 
+You can customize rules by customing a variable =autofix-shartpquote-symbols-spec=.
+
+**** ~autofix-scan-extract-all-docs~
+Return string with all docs in all buffer. If called interactively also copies it.
+**** ~autofix-annotate-buffer~
+Add annotatations in header comment section. Annotations includes commands, custom variables, e.g.:
+#+begin_src emacs-lisp
+;;; Commands
+
+;; M-x `autofix'
+;;      Apply all functions from `autofix-functions'.
+;;      Default code fixes includes auto adding auto load comments before all
+;;      interactive commands and removing unused (declare-function ...) forms.
+;;      Default comments fixes includes fixes for file headers,
+;;      package headers, footer etc.
+;;      File headers fixes can be customized via `autofix-header-functions'.
+
+;; M-x `autofix-footer'
+;;      Add of fix file footer (provide ='filename) with comment ends here.
+#+end_src
+**** ~autofix-add-fbound~
+Wrap undefined function call in fbound.
 ** Customization
 
-+ ~autofix-ignored-file-patterns~
+**** ~autofix-ignored-file-patterns~
 List of file name bases to ignore.
-
-+ ~autofix-user-fullname~
+**** ~autofix-user-fullname~
 User email to add in header section.
-
-+ ~autofix-user-email~
+**** ~autofix-user-email~
 User email to add in header section. Can be string, variable or function. Function will be called without args and should return string.
+**** ~autofix-functions~
+List of functions to apply with command =autofix=.
+**** ~autofix-spdx-license~
+Default =spdx= short-form identifier.
 
-+ ~autofix-comment-section-body~
+**** ~autofix-shartpquote-symbols-spec~
+Alist of symbols and required sharpquote positions. Each element is a cons which car is either symbol or list of symbols, which cdr is a position of children element, that should be sharquoted.
+**** ~autofix-comment-section-body~
 Static text for adding in header comment section. It doesn't includes dynamic variables such author, year etc.
+
+
