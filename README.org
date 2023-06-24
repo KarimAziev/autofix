@@ -144,7 +144,7 @@ You can customize rules by customing a variable =autofix-shartpquote-symbols-spe
 **** ~autofix-scan-extract-all-docs~
 Return string with all docs in all buffer. If called interactively also copies it.
 **** ~autofix-annotate-buffer~
-Add annotatations in header comment section. Annotations includes commands, custom variables, e.g.:
+Add annotations in header comment section, e.g.:
 #+begin_src emacs-lisp
 ;;; Commands
 
