@@ -173,9 +173,10 @@ It doesn't includes dynamic variables such author, year etc."
                                                seq-do-indexed
                                                apply-on-rectangle
                                                apply-partially
-                                               defalias
                                                cl-assoc-if
                                                callf
+                                               cl-callf
+                                               transient-setup
                                                call-interactively
                                                apply
                                                cancel-function-timers
@@ -183,6 +184,7 @@ It doesn't includes dynamic variables such author, year etc."
                                               . 1)
                                              ((add-hook
                                                remove-hook
+                                               defalias
                                                local-set-key
                                                run-hook-wrapped
                                                global-set-key advice-remove)
