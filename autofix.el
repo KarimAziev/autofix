@@ -907,7 +907,9 @@ It will be called without arguments."
                      (yes-or-no-p "Replace region?"))
             (delete-overlay overlay))
       (when (fboundp 'replace-region-contents)
-        (replace-region-contents beg end (lambda () rep)))
+        (if (equal beg end)
+            (insert rep)
+          (replace-region-contents beg end (lambda () rep))))
       rep)))
 
 ;;;###autoload
@@ -1447,15 +1449,29 @@ See function `autofix-parse-list-at-point'."
     (unless (string-empty-p str)
       (concat prompt str))))
 
-(defun autofix-ensure-autoload ()
-  "Insert autoload if list at point is a command without autoload comment."
+
+(defun autofix-ensure-autoload (&optional prompt-fn)
+  "Ensure autoload comments are present or add them if missing.
+
+Argument PROMPT-FN is an optional argument that represents a function or macro
+used to prompt the user for input."
   (let ((l (autofix-parse-list-at-point)))
     (pcase l
       (`(,(and name (guard (stringp name))
                (guard (not (string-match-p "[-][-]" name))))
          ,_ ,_ interactive)
        (unless (looking-back ";;;###autoload[\s\t\n]+" 0)
-         (insert ";;;###autoload\n")
+         (when (or (not prompt-fn)
+                   (funcall #'autofix-overlay-prompt-region
+                            (point)
+                            (point)
+                            `(before-string ,(propertize ";;;###autoload\n"
+                                                         'face
+                                                         'success)
+                                            face
+                                            error)
+                            prompt-fn))
+           (insert ";;;###autoload\n"))
          t))
       (`(,(and name (guard (stringp name))
                (guard (not (string-match-p "[-][-]" name))))
@@ -1464,20 +1480,49 @@ See function `autofix-parse-list-at-point'."
                    ";;;###autoload (autoload '%s %s nil t)"
                    (car l)
                    (prin1-to-string
-                    (lm-get-package-name)))))
+                    (autofix-guess-feature-name)))))
          (when (save-excursion
                  (or (not (zerop (forward-line -1)))
-                     (let ((beg (point)))
+                     (let ((beg (point))
+                           (end))
                        (if (not (re-search-forward ";;;###autoload[\s\t]?+"
                                                    (line-end-position)
                                                    t
                                                    1))
                            t
-                         (replace-region-contents beg (line-end-position)
-                                                  (lambda ()
-                                                    rep))
+                         (when (or (not prompt-fn)
+                                   (let ((curr))
+                                     (setq end (line-end-position))
+                                     (setq curr (buffer-substring-no-properties
+                                                 beg
+                                                 end))
+                                     (and (not (string= curr rep))
+                                          (funcall
+                                           #'autofix-overlay-prompt-region
+                                           beg
+                                           end
+                                           `(before-string
+                                             ,(propertize rep
+                                                          'face
+                                                          'error)
+                                             face
+                                             error)
+                                           prompt-fn))))
+                           (replace-region-contents beg end
+                                                    (lambda ()
+                                                      rep)))
                          nil))))
-           (insert (concat rep "\n"))))))))
+           (when (or (not prompt-fn)
+                     (funcall #'autofix-overlay-prompt-region
+                              (point)
+                              (point)
+                              `(before-string ,(propertize (concat rep "\n")
+                                                           'face
+                                                           'success)
+                                              face
+                                              error)
+                              prompt-fn))
+             (insert (concat rep "\n")))))))))
 
 (defun autofix-make-short-annotation ()
   "Trim prefix from buffer file name base."
@@ -1490,6 +1535,8 @@ See function `autofix-parse-list-at-point'."
            (buffer-name (current-buffer)))))
     "[^a-z]" t)
    "\s"))
+
+
 
 (defun autofix-non-directory-file-or-buff ()
   "Return file name sans its directory from current buffer."
@@ -1925,13 +1972,41 @@ to inhibit replacing."
                (if (looking-at "\n\n") "" "\n"))))))
 
 ;;;###autoload
-(defun autofix-autoloads ()
-  "Add autoload comments before all interactive functions in buffer."
-  (interactive)
-  (save-excursion
-    (goto-char (point-max))
-    (while (autofix-backward-list)
-      (autofix-ensure-autoload))))
+(defun autofix-autoloads (&optional no-prompt)
+  "Fix autoloads interactively, with optional prompt to confirm each action.
+
+Argument NO-PROMPT is a flag that determines whether or not to prompt the user
+for confirmation before performing an action."
+  (interactive "P")
+  (let* ((confirmed)
+         (prompt-fn
+          (unless no-prompt
+            (lambda ()
+              (if (memq confirmed '(?! ?N))
+                  (or (eq confirmed ?!)
+                      (not (eq confirmed ?N)))
+                (setq confirmed
+                      (car
+                       (read-multiple-choice "Replace?"
+                                             '((?y "yes"
+                                                   "perform the action")
+                                               (?n "no"
+                                                   "skip to the next")
+                                               (?N "No, for all"
+                                                   "No, decline all remaining without more questions")
+                                               (?! "all"
+                                                   "accept all remaining without more questions")
+                                               (?h "help"
+                                                   "show help")
+                                               (?q "quit" "exit")))))
+                (pcase confirmed
+                  (?q (keyboard-quit))
+                  ((or ?y ?!)
+                   t)))))))
+    (save-excursion
+      (goto-char (point-max))
+      (while (autofix-backward-list)
+        (autofix-ensure-autoload prompt-fn)))))
 
 ;;;###autoload
 (defun autofix-header ()
