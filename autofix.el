@@ -297,11 +297,13 @@ which cdr is a position of children element, that should be sharquoted."
                                   "Package-Requires"
                                   "SPDX-License-Identifier"))
 
-(defvar autofix-package-header-re (concat "^;;\s"
-                                          "\\("
-                                          (string-join autofix-package-headers
-                                                       "\\|")
-                                          "\\):"))
+(defvar autofix-package-header-re  (concat "^;;[\s]" (regexp-opt
+                                                      autofix-package-headers)
+                                           ":"))
+(defvar autofix-package-header-re-with-value
+  (concat
+   autofix-package-header-re
+   "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))
 
 (defun autofix-detect-user-email ()
   "Guess the user's email address. Return nil if none could be found."
@@ -352,7 +354,7 @@ Function will be called without args and should return string."
                  (replace-regexp-in-string
                   "@.+" ""
                   (string-trim str)))
-                "[^a-zZ-A]" t)
+                "[^a-z]" t)
                "\s")))
 
 (defcustom autofix-user-fullname 'user-full-name
@@ -584,7 +586,8 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 
 (defun autofix-get-current-version ()
   "Return package header version as string."
-  (when-let ((info (autofix-header-get-regexp-info ";;[\s\t]+Version:\\([^\n]+\\)*")))
+  (when-let ((info (autofix-header-get-regexp-info
+                    ";;[\s\t]+Version:\\([^\n]+\\)?")))
     (let* ((current-version (string-trim
                              (match-string-no-properties 1))))
       (unless (string-empty-p current-version)
@@ -595,7 +598,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
   "Update or add new package version."
   (interactive)
   (if-let ((info (autofix-header-get-regexp-info
-                  ";;[\s]Version:\\([^\n]+\\)*")))
+                  ";;[\s]Version:\\([^\n]+\\)?")))
       (let* ((beg (nth 1 info))
              (end (nth 2 info))
              (current-version (autofix-get-current-version))
@@ -720,8 +723,7 @@ If package is optional, also add suffix (optional)."
        ,@body)))
 
 (defun autofix-parse-require ()
-  "Parse list at point and return alist of form (symbol-name args doc deftype).
-E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
+  "Parse and format s-expression to require statement."
   (when-let ((sexp
               (unless (or (nth 4 (syntax-ppss (point)))
                           (nth 3 (syntax-ppss (point))))
@@ -839,18 +841,13 @@ If TOP-LEVEL is non nil, return only top-levels calls."
           (autofix-jump-to-package-header-end)
           (insert
            (concat
-            (if (and
+            (if
+                (and
                  (looking-back "\n" 0)
                  (save-excursion
                    (forward-line -1)
                    (looking-at
-                    (concat
-                     "^;;" "[\s]\\("
-                     (string-join
-                      autofix-package-headers
-                      "\\|")
-                     "\\)" ":"
-                     "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)"))))
+                    autofix-package-header-re-with-value)))
                 ""
               "\n")
             rep
@@ -858,6 +855,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
                  "\n\n")
                 ""
               "\n"))))))))
+
 
 ;;;###autoload
 (defun autofix-package-requires ()
@@ -877,11 +875,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
                                          nil t 1)
                      (max start (point)))))
     (while (re-search-forward
-            (concat
-             "^;;" "[\s]\\(" (string-join
-                              autofix-package-headers "\\|")
-             "\\)" ":"
-             "\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")
+            autofix-package-header-re-with-value
             end t 1)
       (setq start (point)))
     (when (looking-at ";")
@@ -926,7 +920,7 @@ To change the value customize the variable `autofix-comment-section-body'."
                (commentary-start
                 (save-excursion
                   (when (autofix-jump-to-header-end)
-                    (re-search-backward "^[;]+[\s\t]+Commentary:[\s\t]?+\n"
+                    (re-search-backward "^[;]+[\s\t]+Commentary:[\s\t]*\n"
                                         nil
                                         t 1)))))
           (autofix-confirm-and-replace-region
@@ -1194,7 +1188,7 @@ SYMB can be either symbol, either string."
           (when (looking-at "\"")
             (forward-sexp 1)
             (skip-chars-forward "\s\t\n"))
-          (when (looking-at "[(]interactive[^a-zZ-A]")
+          (when (looking-at "[(]interactive[^a-z]")
             (forward-sexp 1)
             (skip-chars-forward "\s\t\n"))
           (point))))))
@@ -1485,7 +1479,7 @@ used to prompt the user for input."
                  (or (not (zerop (forward-line -1)))
                      (let ((beg (point))
                            (end))
-                       (if (not (re-search-forward ";;;###autoload[\s\t]?+"
+                       (if (not (re-search-forward ";;;###autoload[\s\t]*"
                                                    (line-end-position)
                                                    t
                                                    1))
@@ -1551,8 +1545,9 @@ used to prompt the user for input."
   "Return line substring with Copyright header comment."
   (save-excursion
     (goto-char (point-min))
-    (when (re-search-forward "^;;[\s\t]+Copyright\\([\s\t]?+\\(©\\|[(][Cc][)]\\)\\)"
-                             nil t 1)
+    (when (re-search-forward
+           "^;;[\s\t]+Copyright\\([\s\t]*\\(©\\|[(][Cc][)]\\)\\)"
+           nil t 1)
       (skip-chars-forward "\s\t")
       (buffer-substring-no-properties
        (line-beginning-position)
@@ -1573,7 +1568,7 @@ used to prompt the user for input."
   (interactive)
   (unless (or (not autofix-spdx-license)
               (autofix-header-get-regexp-info
-               "\\(;; SPDX-License-Identifier: \\([a-zZ-A][^\n]+\\)\\)"))
+               "\\(;; SPDX-License-Identifier: \\([a-z][^\n]+\\)\\)"))
     (autofix-jump-to-package-header-end)
     (insert (concat ";; SPDX-License-Identifier: " autofix-spdx-license
                     (if (looking-at "[^\n]")
@@ -1592,10 +1587,9 @@ used to prompt the user for input."
                    (regexp-quote author)
                    current)
             (when-let ((line-end
-                        (when
-                            (re-search-forward
-                             "^;;[\s\t]+Copyright\\([\s\t]?+\\(©\\|[(][Cc][)]\\)\\)"
-                             nil t 1)
+                        (when (re-search-forward
+                               "^;;[\s\t]+Copyright\\([\s\t]*\\(©\\|[(][Cc][)]\\)\\)"
+                               nil t 1)
                           (line-end-position))))
               (when (yes-or-no-p
                      (format "Change copyright %s?"
@@ -1604,8 +1598,9 @@ used to prompt the user for input."
                               (line-end-position))))
                 (let ((new-copyright (read-string "Copyright" author)))
                   (replace-region-contents (point) line-end
-                                           (lambda () (concat " "
-                                                         new-copyright))))))))
+                                           (lambda ()
+                                             (concat " "
+                                                     new-copyright))))))))
       (save-excursion
         (goto-char (point-min))
         (forward-line 1)
@@ -1951,7 +1946,7 @@ to inhibit replacing."
 
 ;;;###autoload
 (defun autofix-commentary ()
-  "Add Commentary section in current buffer if none."
+  "Insert or fix the commentary section in the header of an Emacs Lisp file."
   (interactive)
   (save-excursion
     (autofix-jump-to-header-end)
@@ -2047,7 +2042,7 @@ for confirmation before performing an action."
 
 ;;;###autoload
 (defun autofix-footer ()
-  "Add of fix file footer (provide \='filename) with comment ends here."
+  "Add of fix file footer (provide \\='filename) with comment ends here."
   (interactive)
   (save-excursion
     (let* ((name (autofix-guess-feature-name))
