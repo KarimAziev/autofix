@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/autofix
 ;; Keywords: convenience, docs
 ;; Version: 0.6.0
-;; Package-Requires: ((emacs "27.1") (package-lint "0.17"))
+;; Package-Requires: ((emacs "29.1") (package-lint "0.19"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
@@ -375,6 +375,240 @@ Function will be called without args and should return string."
   "List of file name bases to ignore."
   :type '(repeat (regexp :tag "Regexp"))
   :group 'autofix)
+
+(defcustom autofix-extra-transient-suffixes '(("i" "Include undefined"
+                                               elisp-bundle-include-undefined
+                                               :if
+                                               (lambda
+                                                 ()
+                                                 (require 'elisp-bundle
+                                                  nil
+                                                  t)))
+                                              ("o" "generate docs"
+                                               org-autodoc-async
+                                               :if
+                                               (lambda
+                                                 ()
+                                                 (require 'org-autodoc
+                                                  nil
+                                                  t))))
+  "List of additional transient suffixes for autofix commands.
+
+A list of additional transient suffixes to be included in the autofix menu. Each
+element in the list is itself a list, specifying a transient suffix.
+
+The elements of the inner list are as follows:
+
+1. A single-character string that acts as the key for the transient suffix.
+
+2. A string, function, or sexp that provides a description for the transient
+suffix. If a function is provided, it should return a string when called.
+
+3. A function that will be called when the transient suffix is invoked.
+
+4. An optional list of conditions that determine when the transient suffix is
+inappropriate, based on the current major mode. Each condition is a list
+containing a keyword specifying the type of inappropriateness and the relevant
+major mode symbol.
+
+5. An optional list of conditions that determine when the transient suffix is
+appropriate, based on the current major mode. Each condition is a list
+containing a keyword specifying the type of appropriateness and the relevant
+major mode symbol.
+
+6. An optional list of conditions based on variable values that determine when
+the transient suffix is appropriate. Each condition is a list containing a
+keyword specifying the type of appropriateness and the variable to check.
+
+7. An optional list of conditions based on variable values that determine when
+the transient suffix is inappropriate. Each condition is a list containing a
+keyword specifying the type of inappropriateness and the variable to check.
+
+8. An optional list of conditions that determine when the transient suffix is
+appropriate, based on the evaluation of a predicate. Each condition is a list
+containing a keyword specifying the type of appropriateness and the predicate to
+evaluate.
+
+9. An optional list of conditions that determine when the transient suffix is
+inappropriate, based on the evaluation of a predicate. Each condition is a list
+containing a keyword specifying the type of inappropriateness and the predicate
+to evaluate.
+
+The default value is a list of two example suffixes, one for including undefined
+elisp symbols and another for generating documentation asynchronously. These
+examples include the necessary functions and conditions for their inclusion in
+the autofix menu."
+  :group 'autofix
+  :type `(repeat
+          (list
+           :tag "Suffix"
+           (string :tag "Key")
+           (choice
+            (string :tag "Description")
+            (function :tag "Description Function")
+            (sexp :tag "Description sexp"))
+           (function :tag "Command")
+           (repeat
+            :tag "Inapt by modes"
+            :inline t
+            (list
+             :tag "Inapt by modes"
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-mode"
+               :doc
+               "Inapt if major-mode matches value."
+               :inapt-if-mode)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-not-mode"
+               :doc
+               "Inapt if major-mode does not match value."
+               :inapt-if-not-mode)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-derived"
+               :doc
+               "Inapt if major-mode derives from value."
+               :inapt-if-derived)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-not-derived"
+               :doc
+               "Inapt if major-mode does not derive from value."
+               :inapt-if-not-derived))
+             (symbol
+              :completions
+              (lambda (string pred action)
+                (let ((completion-ignore-case t))
+                 (complete-with-action action
+                  (remove 't
+                   (seq-uniq
+                    (seq-filter
+                     #'symbolp
+                     (flatten-list
+                      auto-mode-alist))))
+                  string pred))))))
+           (repeat
+            :tag "If mode"
+            :inline t
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if-mode"
+               :doc
+               "Enable if major-mode matches value."
+               :if-mode)
+              (const
+               :format "%v %d"
+               :tag ":if-not-mode"
+               :doc
+               "Enable if major-mode does not match value."
+               :if-not-mode)
+              (const
+               :format "%v %d"
+               :tag ":if-derived"
+               :doc
+               "Enable if major-mode derives from value."
+               :if-derived)
+              (const
+               :format "%v %d"
+               :tag ":if-not-derived"
+               :doc
+               "Enable if major-mode does not derive from value."
+               :if-not-derived))
+             (symbol :completions
+              (lambda (string pred action)
+                (let ((completion-ignore-case t))
+                 (complete-with-action action
+                  (remove 't
+                   (seq-uniq
+                    (seq-filter
+                     #'symbolp
+                     (flatten-list
+                      auto-mode-alist))))
+                  string pred))))))
+           (repeat
+            :inline t
+            :tag "If variable"
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if-non-nil"
+               :doc
+               "Enable if variable's value is non-nil."
+               :if-non-nil)
+              (const
+               :format "%v %d"
+               :tag ":if-nil"
+               :doc "Enable if variable's value is nil."
+               :if-nil))
+             variable))
+           (repeat
+            :inline t
+            :tag "Inapt if variable"
+            (list
+             :inline t
+             (radio (const
+                     :format "%v %d"
+                     :tag ":inapt-if-non-nil"
+                     :doc
+                     "Inapt if variable's value is non-nil."
+                     :inapt-if-non-nil)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-nil"
+               :doc
+               "Inapt if variable's value is nil."
+               :inapt-if-nil))
+             variable))
+           (repeat
+            :tag "If"
+            :inline t
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if"
+               :doc "Enable if predicate returns non-nil."
+               :if)
+              (const
+               :format "%v %d"
+               :tag ":if-not"
+               :doc "Enable if predicate returns nil."
+               :if-not)
+              (symbol :tag "other"))
+             (choice (function :tag "Function")
+              (symbol :tag "Symbol")
+              (sexp :tag "Sexp"))))
+           (repeat
+            :tag "Inapt if "
+            :inline t
+            (list
+             :inline t
+             (radio (const
+                     :format "%v %d"
+                     :tag ":inapt-if"
+                     :doc
+                     "Inapt if predicate returns non-nil."
+                     :inapt-if)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-not"
+               :doc
+               "Inapt if predicate returns nil."
+               :inapt-if-not)
+              (symbol :tag "other"))
+             (choice (function :tag "Function")
+              (symbol :tag "Symbol")
+              (sexp :tag "Sexp")))))))
 
 (defun autofix-overlay-add-props (overlay props)
   "Add plist PROPS to OVERLAY."
@@ -2080,6 +2314,46 @@ for confirmation before performing an action."
         (goto-char (point-max))
         (insert (if (looking-back "\n" 0) "" "\n")
                 (concat "(provide " "'" name ")" "\n" footer-end))))))
+
+;;;###autoload (autoload 'autofix-menu "autofix" nil t)
+(transient-define-prefix autofix-menu ()
+  "Command dispatcher for autofix."
+  [["Autofix"
+    ("a" "all" autofix)
+    ("f" "Add fbound" autofix-add-fbound)
+    ("u" "Remove unused declarations"
+     autofix-remove-unused-declarations)
+    ("q" "sharp quotes" autofix-function-name-quoting)
+    ("F" "footer" autofix-footer)
+    ("h" "header" autofix-header)
+    ("s" "add autoloads" autofix-autoloads)
+    ("l" "first header line" autofix-header-first-line)]
+   [("y" "copyright" autofix-copyright)
+    ("r" "author" autofix-author)
+    ("U" "url" autofix-url)
+    ("v" "version" autofix-version)
+    ("k" "keywords" autofix-keywords)
+    ("R" "package-requires" autofix-package-requires)
+    ("b" "body comment" autofix-header-body-comment)
+    ("m" "commentary" autofix-commentary)
+    ("C" "add Code" autofix-code-comment)]
+   [:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       transient--prefix
+       (apply #'vector
+              (mapcar (lambda (it)
+                        (let ((description (nth 1 it)))
+                          (if (stringp description)
+                              it
+                            (append (list (car it)
+                                          (nth 2 it)
+                                          :description
+                                          description)
+                                    (seq-drop it 3)))))
+                      (seq-filter (lambda (l)
+                                    (fboundp (nth 2 l)))
+                                  autofix-extra-transient-suffixes)))))]])
 
 
 ;;;###autoload
