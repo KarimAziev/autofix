@@ -127,6 +127,8 @@
 
 ;;; Code:
 
+(require 'transient)
+
 (require 'subr-x)
 (require 'package-lint)
 
