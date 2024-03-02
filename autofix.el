@@ -2355,7 +2355,8 @@ for confirmation before performing an action."
                                     (seq-drop it 3)))))
                       (seq-filter (lambda (l)
                                     (fboundp (nth 2 l)))
-                                  autofix-extra-transient-suffixes)))))]])
+                                  autofix-extra-transient-suffixes)))))
+    :class transient-column]])
 
 
 ;;;###autoload
