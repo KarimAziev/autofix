@@ -189,21 +189,23 @@ It doesn't includes dynamic variables such author, year etc."
                                                defalias
                                                local-set-key
                                                run-hook-wrapped
-                                               global-set-key advice-remove)
+                                               global-set-key advice-remove
+                                               seq-sort-by)
                                               . 2)
                                              ((run-with-idle-timer define-key
-                                                                   advice-add
-                                                                   run-with-timer
-                                                                   run-at-time)
+                                               advice-add
+                                               run-with-timer
+                                               run-at-time)
                                               . 3))
   "Alist of symbols and required sharpquote positions.
+
 Each element is a cons which car is either symbol or list of symbols,
 which cdr is a position of children element, that should be sharquoted."
   :group 'autofix
   :type '(alist
           :key-type (radio :tag "Symbol or symbols"
-                           (symbol :tag "Symbol")
-                           (repeat :tag "Symbols" symbol))
+                     (symbol :tag "Symbol")
+                     (repeat :tag "Symbols" symbol))
           :value-type integer))
 
 (defcustom autofix-header-functions '(autofix-header-first-line
