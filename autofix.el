@@ -311,7 +311,7 @@ which cdr is a position of children element, that should be sharquoted."
 
 (defun autofix-detect-user-email ()
   "Guess the user's email address. Return nil if none could be found."
-  (when-let ((mail (or (shell-command-to-string
+  (when-let* ((mail (or (shell-command-to-string
                         "git config --get user.email")
                        (shell-command-to-string
                         "git config --global --get user.email")
@@ -348,7 +348,7 @@ Function will be called without args and should return string."
 
 (defun autofix-detect-user-full-name ()
   "Detect user full name from git config, email or function `user-full-name'."
-  (when-let ((str (or
+  (when-let* ((str (or
                    (shell-command-to-string "git config --get user.name")
                    (autofix-get-user-email)
                    (user-full-name))))
@@ -710,11 +710,11 @@ See `autofix-user-fullname'."
 
 (defun autofix-author-annotation ()
   "Return string with full name and <email>."
-  (when-let ((author
+  (when-let* ((author
               (delete
                nil
                (list (autofix-get-user-fullname)
-                     (when-let ((email (autofix-get-user-email)))
+                     (when-let* ((email (autofix-get-user-email)))
                        (format "<%s>" email))))))
     (string-join author "\s")))
 
@@ -722,13 +722,13 @@ See `autofix-user-fullname'."
   "Jump to end of line of the header comment section."
   (let ((buff-str (buffer-string))
         (buff (current-buffer)))
-    (when-let ((pos
+    (when-let* ((pos
                 (with-temp-buffer
                   (insert buff-str)
                   (delay-mode-hooks
                     (emacs-lisp-mode)
                     (goto-char (point-min))
-                    (when-let ((form-start
+                    (when-let* ((form-start
                                 (progn
                                   (goto-char (point-min))
                                   (ignore-errors (forward-sexp 1))
@@ -751,7 +751,7 @@ See `autofix-user-fullname'."
 (defun autofix-header-get-regexp-info (regexp)
   "Search for REGEXP in header section.
 Return list of (\"REGEXP MATCH ...\" start end)."
-  (when-let ((max (save-excursion (autofix-jump-to-header-end))))
+  (when-let* ((max (save-excursion (autofix-jump-to-header-end))))
     (save-excursion
       (goto-char (point-min))
       (when
@@ -775,7 +775,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                    (make-string (length "\sAuthor:\s") ?\ )
                    new-author
                    "\n"))
-          (t (when-let ((col
+          (t (when-let* ((col
                          (string-match-p
                           "[^;\s\t]"
                           (replace-regexp-in-string "^[;]+" ""
@@ -787,8 +787,8 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 (defun autofix-author ()
   "Add current user as new author to existing or new author section."
   (interactive)
-  (when-let ((annotation (autofix-author-annotation)))
-    (if-let
+  (when-let* ((annotation (autofix-author-annotation)))
+    (if-let*
         ((author-header
           (autofix-header-get-regexp-info
            "^;;[\s]Author:\\(\\([^\n]*\\)\n\\(;;[\s][\s]+\\([^\n]+\\)[\n]\\)*\\)")))
@@ -824,7 +824,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 
 (defun autofix-get-current-version ()
   "Return package header version as string."
-  (when-let ((info (autofix-header-get-regexp-info
+  (when-let* ((info (autofix-header-get-regexp-info
                     ";;[\s\t]+Version:\\([^\n]+\\)?")))
     (let* ((current-version (string-trim
                              (match-string-no-properties 1))))
@@ -835,7 +835,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 (defun autofix-update-version ()
   "Update or add new package version."
   (interactive)
-  (if-let ((info (autofix-header-get-regexp-info
+  (if-let* ((info (autofix-header-get-regexp-info
                   ";;[\s]Version:\\([^\n]+\\)?")))
       (let* ((beg (nth 1 info))
              (end (nth 2 info))
@@ -865,7 +865,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
 
 (defun autofix-get-emacs-version ()
   "Return suitable Emacs version for current package."
-  (when-let ((l
+  (when-let* ((l
               (last
                (seq-sort-by
                 #'cadr
@@ -901,11 +901,11 @@ Return list of (\"REGEXP MATCH ...\" start end)."
         (type))
     (while (setq type
                  (unless found (pop types)))
-      (when-let ((buff (or
+      (when-let* ((buff (or
                         (ignore-errors
                           (pcase type
                             ('lib
-                             (when-let ((file
+                             (when-let* ((file
                                          (find-library-name
                                           (prin1-to-string
                                            sym))))
@@ -913,7 +913,7 @@ Return list of (\"REGEXP MATCH ...\" start end)."
                             (_ (car (find-definition-noselect
                                      sym type))))))))
         (setq found (with-current-buffer buff
-                      (when-let ((name (package-lint--provided-feature))
+                      (when-let* ((name (package-lint--provided-feature))
                                  (version (or
                                            (ignore-errors
                                              (replace-regexp-in-string
@@ -962,7 +962,7 @@ If package is optional, also add suffix (optional)."
 
 (defun autofix-parse-require ()
   "Parse and format s-expression to require statement."
-  (when-let ((sexp
+  (when-let* ((sexp
               (unless (or (nth 4 (syntax-ppss (point)))
                           (nth 3 (syntax-ppss (point))))
                 (sexp-at-point))))
@@ -974,14 +974,14 @@ If package is optional, also add suffix (optional)."
 Return new position if changed, nil otherwise."
   (unless n (setq n 1))
   (with-syntax-table emacs-lisp-mode-syntax-table
-    (when-let ((str-start (nth 8 (syntax-ppss (point)))))
+    (when-let* ((str-start (nth 8 (syntax-ppss (point)))))
       (goto-char str-start))
     (let ((init-pos (point))
           (pos)
           (count (if (> n 0) n (- n))))
       (while
           (and (not (= count 0))
-               (when-let ((end (ignore-errors
+               (when-let* ((end (ignore-errors
                                  (funcall fn (if
                                                  (> n 0) 1
                                                -1))
@@ -1017,10 +1017,10 @@ If TOP-LEVEL is non nil, return only top-levels calls."
     (save-excursion
       (goto-char (point-max))
       (while (autofix-backward-list)
-        (when-let ((sexp
+        (when-let* ((sexp
                     (unless (nth 4 (syntax-ppss (point)))
                       (list-at-point))))
-          (if-let ((dep (autofix-format-sexp-to-require sexp)))
+          (if-let* ((dep (autofix-format-sexp-to-require sexp)))
               (push dep requires)
             (when (and (not top-level)
                        (listp sexp))
@@ -1029,7 +1029,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
       (autofix-with-temp-lisp-buffer
           (insert (prin1-to-string deps))
           (while (re-search-backward "[(]require[\s\t\n\r\f]+'" nil t 1)
-            (when-let ((found (autofix-parse-require)))
+            (when-let* ((found (autofix-parse-require)))
               (unless (member found requires)
                 (push found requires))))))
     requires))
@@ -1043,7 +1043,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
 
 (defun autofix-add-package-require-lib (entry)
   "Add ENTRY of form (symbol \"version\") to package requires section."
-  (when-let ((required entry))
+  (when-let* ((required entry))
     (let* ((info (autofix-header-get-regexp-info
                   ";;[\s]Package-Requires:\\([^\n]+\\)?"))
            (str
@@ -1051,7 +1051,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
            (curr-requires
             (when str (car (read-from-string str))))
            (result (mapcar (lambda (it)
-                             (if-let ((repl
+                             (if-let* ((repl
                                        (seq-find (lambda (c)
                                                    (eq
                                                     (car it)
@@ -1099,7 +1099,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
 (defun autofix-package-requires ()
   "Add or fix package requires section."
   (interactive)
-  (when-let ((required (delq nil
+  (when-let* ((required (delq nil
                              (append (autofix-get-emacs-version)
                                      (autofix-get-required-libs)))))
     (autofix-add-package-require-lib required)))
@@ -1125,7 +1125,7 @@ If TOP-LEVEL is non nil, return only top-levels calls."
   "Replace region between BEG and END with REPLACEMENT.
 REPLACEMENT should be a string, or a function that returns string.
 It will be called without arguments."
-  (when-let ((overlay (make-overlay beg end))
+  (when-let* ((overlay (make-overlay beg end))
              (rep (if (functionp replacement)
                       (funcall replacement)
                     replacement)))
@@ -1154,7 +1154,7 @@ To change the value customize the variable `autofix-comment-section-body'."
   (when autofix-comment-section-body
     (autofix-jump-to-package-header-end)
     (unless (re-search-forward autofix-comment-section-body nil t 1)
-      (if-let ((start (point))
+      (if-let* ((start (point))
                (commentary-start
                 (save-excursion
                   (when (autofix-jump-to-header-end)
@@ -1177,7 +1177,7 @@ To change the value customize the variable `autofix-comment-section-body'."
   "Add or fix package keywords.
 With optional argument FORCE regenerate them even if valid."
   (interactive "P")
-  (if-let ((info (autofix-header-get-regexp-info
+  (if-let* ((info (autofix-header-get-regexp-info
                   ";;[\s]Keywords:\\([^\n]+\\)?")))
       (when force
         (let ((beg (nth 1 info))
@@ -1196,7 +1196,7 @@ With optional argument FORCE regenerate them even if valid."
                                                          (string-join rep
                                                                       ",\s"))))
             (delete-region beg end))))
-    (when-let ((keywords (when (autofix-jump-to-package-header-start)
+    (when-let* ((keywords (when (autofix-jump-to-package-header-start)
                            (autofix-read-keyword))))
       (autofix-jump-to-package-header-end)
       (insert (if (looking-back "\n" 0) "" "\n")
@@ -1315,7 +1315,7 @@ With optional argument FORCE regenerate them even if valid."
 (defun autofix-goto-last-form ()
   "Jump to last Lisp form in buffer."
   (goto-char (point-max))
-  (when-let ((pos
+  (when-let* ((pos
               (save-excursion
                 (ignore-errors (forward-list -1))
                 (when (looking-at "[(]")
@@ -1409,7 +1409,7 @@ SYMB can be either symbol, either string."
 (defun autofix-jump-to-defun-body ()
   "Jump to the body start in the current function."
   (let ((found nil))
-    (when-let ((start (car-safe (nth 9 (syntax-ppss (point))))))
+    (when-let* ((start (car-safe (nth 9 (syntax-ppss (point))))))
       (goto-char start)
       (when-let* ((sexp (sexp-at-point))
                   (sexp-type (car-safe sexp)))
@@ -1481,7 +1481,7 @@ SYMB can be either symbol, either string."
                    (forward-char -1)
                    (newline-and-indent)
                    (insert content)
-                   (when-let ((lib
+                   (when-let* ((lib
                                (ignore-errors
                                  (with-current-buffer (car-safe (find-definition-noselect
                                                                  (intern
@@ -1540,7 +1540,7 @@ SYMB can be either symbol, either string."
 
 (defun autofix-symbol-keymapp (sym)
   "Return t if value of symbol SYM is a keymap."
-  (when-let ((val (when (boundp sym)
+  (when-let* ((val (when (boundp sym)
                     (symbol-value sym))))
     (keymapp val)))
 
@@ -1554,7 +1554,7 @@ SYMB can be either symbol, either string."
     (when (and (listp vals)
                (listp (car vals)))
       (seq-find (lambda (it)
-                (when-let ((val (and (listp (cdr it))
+                (when-let* ((val (and (listp (cdr it))
                                      (listp (cadr it))
                                      (cadr it))))
                   (and
@@ -1601,10 +1601,10 @@ E.g. (\"autofix-parse-list-at-point\" (arg) \"Doc string\" defun)"
 
 Each group is prefixed with PREFIX, and consists of
 results of calling FN with list of (symbol-name args doc deftype)."
-  (when-let ((items (autofix-scan-buffer)))
+  (when-let* ((items (autofix-scan-buffer)))
     (let ((blocks))
       (dolist (key (mapcar #'car autofix-group-annotation-alist))
-        (when-let ((title (alist-get key autofix-group-annotation-alist))
+        (when-let* ((title (alist-get key autofix-group-annotation-alist))
                    (description (plist-get items key)))
           (setq description
                 (concat prefix
@@ -1661,10 +1661,10 @@ See function `autofix-parse-list-at-point'."
     (let ((pl '()))
       (goto-char (point-max))
       (while (autofix-backward-list)
-        (when-let ((sexp (autofix-parse-list-at-point)))
+        (when-let* ((sexp (autofix-parse-list-at-point)))
           (let ((keyword (intern (concat ":" (symbol-name (car
                                                            (reverse sexp)))))))
-            (if-let ((group (plist-get pl keyword)))
+            (if-let* ((group (plist-get pl keyword)))
                 (setq pl (plist-put pl keyword (append group (list sexp))))
               (setq pl (plist-put pl keyword (list sexp)))))))
       pl)))
@@ -1817,14 +1817,14 @@ used to prompt the user for input."
 (defun autofix-copyright ()
   "Prompt and fix or make new copyright."
   (interactive)
-  (when-let ((author (autofix-author-annotation)))
-    (if-let ((current (autofix-get-current-copyright)))
+  (when-let* ((author (autofix-author-annotation)))
+    (if-let* ((current (autofix-get-current-copyright)))
         (save-excursion
           (goto-char (point-min))
           (unless (string-match-p
                    (regexp-quote author)
                    current)
-            (when-let ((line-end
+            (when-let* ((line-end
                         (when (re-search-forward
                                "^;;[\s\t]+Copyright\\([\s\t]*\\(©\\|[(][Cc][)]\\)\\)"
                                nil t 1)
@@ -1851,7 +1851,7 @@ used to prompt the user for input."
 (defun autofix-url ()
   "Add package header with URL."
   (interactive)
-  (when-let ((remotes (autofix-repo-urls)))
+  (when-let* ((remotes (autofix-repo-urls)))
     (save-excursion
       (goto-char (point-min))
       (if (re-search-forward "^;;[\s\t]+URL:" nil t 1)
@@ -1859,7 +1859,7 @@ used to prompt the user for input."
                 (end (line-end-position)))
             (let ((curr-url (string-trim (buffer-substring-no-properties
                                           (point) end))))
-              (when-let ((remotes (autofix-repo-urls)))
+              (when-let* ((remotes (autofix-repo-urls)))
                 (unless (member curr-url remotes)
                   (autofix-overlay-prompt-region
                    beg end
@@ -1886,7 +1886,7 @@ used to prompt the user for input."
 Annotations includes commands, custom variables."
   (interactive)
   (save-excursion
-    (when-let ((blocks (autofix-annotate-with
+    (when-let* ((blocks (autofix-annotate-with
                         ";;; "
                         'autofix-annotate-as-comments)))
       (autofix-jump-to-header-end)
@@ -1907,7 +1907,7 @@ Annotations includes commands, custom variables."
     (let ((l '()))
       (goto-char (point-max))
       (while (autofix-backward-list)
-        (when-let ((sexp (autofix-parse-list-at-point)))
+        (when-let* ((sexp (autofix-parse-list-at-point)))
           (push sexp l)))
       (nreverse l))))
 
@@ -1962,7 +1962,7 @@ If called interactively also copies it."
    (read-string
     "Summary:\s"
     (or initial-input
-        (when-let ((annotation (autofix-make-short-annotation)))
+        (when-let* ((annotation (autofix-make-short-annotation)))
           (concat "Configure " annotation))))))
 
 (defun autofix--summary-period ()
@@ -2104,7 +2104,7 @@ to inhibit replacing."
   (save-excursion
     (goto-char (point-min))
     (let ((filename (autofix-non-directory-file-or-buff)))
-      (if-let ((current-header (autofix-get-current-file-header)))
+      (if-let* ((current-header (autofix-get-current-file-header)))
           (let ((current-file (nth 0 current-header))
                 (current-bindings (seq-find
                                    (lambda (it)
